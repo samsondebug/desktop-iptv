@@ -1,0 +1,4 @@
+lib/*.dll
+lib/*.dylib
+lib/*.so*
+!lib/README.md

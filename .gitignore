@@ -1,0 +1,13 @@
+/target
+**/target
+node_modules
+dist
+apps/desktop/src-tauri/gen/schemas
+apps/desktop/src-tauri/lib/*.dll
+apps/desktop/src-tauri/lib/*.dylib
+apps/desktop/src-tauri/lib/*.so*
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+Thumbs.db

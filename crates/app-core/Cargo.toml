@@ -1,0 +1,18 @@
+[package]
+name = "app-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Lifecycle, config, license, shared IPC types and secret redaction"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+hex.workspace = true
+machine-uid.workspace = true
+regex = "1"
+once_cell = "1"
