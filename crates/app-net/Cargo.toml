@@ -20,7 +20,13 @@ reqwest.workspace = true
 rustls.workspace = true
 url.workspace = true
 once_cell = "1"
+# XMLTV importer: streaming XML over tokio, gzip on the fly. `encoding` lets quick-xml honour
+# `<?xml encoding="ISO-8859-1"?>` guides (encoding_rs is already in the tree).
+quick-xml = { version = "0.42", features = ["async-tokio", "encoding"] }
+async-compression = { version = "0.4", features = ["tokio", "gzip"] }
+tokio-util = { version = "0.7", features = ["io"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 tempfile = "3"
+flate2 = "1"

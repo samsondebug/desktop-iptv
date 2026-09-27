@@ -1,7 +1,10 @@
 //! Source adapters (CLAUDE.md §7). Priority: Xtream → M3U → Stalker (flagged).
 //!
-//! Day 1–14 ships the M3U adapter. Xtream lands in days 15–30 behind the same trait so the
-//! Tauri command layer never changes shape.
+//! M3U ([`M3uAdapter`]) and Xtream ([`XtreamAdapter`], in [`xtream`]) sit behind the same trait
+//! so the Tauri command layer never changes shape. Stalker lands last, feature-flagged.
+
+pub mod xtream;
+pub use xtream::*;
 
 use crate::importer::{import_m3u, ImportSource, ProgressSink};
 use crate::{NetError, Result};
@@ -53,24 +56,5 @@ impl CatalogAdapter for M3uAdapter {
 
     async fn sync_epg(&self, _playlist_id: i64) -> Result<SyncStats> {
         Err(NetError::Other("XMLTV import lands in days 15–30".into()))
-    }
-}
-
-/// Placeholder so the shape exists; implemented in days 15–30.
-pub struct XtreamAdapter;
-
-#[async_trait]
-impl CatalogAdapter for XtreamAdapter {
-    async fn authenticate(&self) -> Result<AccountInfo> {
-        Err(NetError::Other("Xtream adapter not implemented yet (days 15–30)".into()))
-    }
-    async fn sync_live(&self, _: i64) -> Result<SyncStats> {
-        Err(NetError::Other("Xtream adapter not implemented yet (days 15–30)".into()))
-    }
-    async fn sync_vod(&self, _: i64) -> Result<SyncStats> {
-        Err(NetError::Other("Xtream adapter not implemented yet (days 15–30)".into()))
-    }
-    async fn sync_epg(&self, _: i64) -> Result<SyncStats> {
-        Err(NetError::Other("Xtream adapter not implemented yet (days 15–30)".into()))
     }
 }

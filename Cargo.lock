@@ -97,10 +97,13 @@ version = "0.1.0"
 dependencies = [
  "app-core",
  "app-db",
+ "async-compression",
  "async-trait",
  "bytes",
+ "flate2",
  "futures-util",
  "once_cell",
+ "quick-xml",
  "reqwest",
  "rustls",
  "serde",
@@ -108,6 +111,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "tokio-util",
  "tracing",
  "url",
 ]
@@ -3063,7 +3067,9 @@ version = "0.42.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b"
 dependencies = [
+ "encoding_rs",
  "memchr",
+ "tokio",
 ]
 
 [[package]]

@@ -43,7 +43,53 @@ impl ProgressSink for NoopSink {
 /// Rows buffered before handing to SQLite. Equals the max-rows-per-transaction rule.
 const BATCH: usize = app_db::MAX_ROWS_PER_TX;
 
-type ByteStream = std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<bytes::Bytes>> + Send>>;
+pub type ByteStream = std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<bytes::Bytes>> + Send>>;
+
+/// An opened source: a byte stream plus what we know about it.
+pub struct OpenedSource {
+    pub stream: ByteStream,
+    pub content_type: Option<String>,
+    pub content_length: Option<u64>,
+    pub final_url_redacted: Option<String>,
+    pub status: Option<u16>,
+}
+
+/// Open a URL (streamed GET, custom UA) or a local file as a byte stream. Shared by the M3U and
+/// XMLTV importers so every source goes through the same client, timeouts and redaction.
+pub async fn open_source(source: &ImportSource) -> Result<OpenedSource> {
+    match source {
+        ImportSource::Url { url, user_agent } => {
+            let client = HttpClient::new(user_agent.as_deref())?;
+            let resp = client.get_stream(url).await?;
+            tracing::info!(
+                status = resp.status,
+                content_type = ?resp.content_type,
+                len = ?resp.content_length,
+                hops = resp.redirect_hops,
+                url = %app_core::redact::redact(&resp.final_url),
+                "source GET"
+            );
+            Ok(OpenedSource {
+                stream: Box::pin(map_body(resp.body)),
+                content_type: resp.content_type,
+                content_length: resp.content_length,
+                final_url_redacted: Some(app_core::redact::redact(&resp.final_url)),
+                status: Some(resp.status),
+            })
+        }
+        ImportSource::File { path } => {
+            let file = tokio::fs::File::open(path).await?;
+            let len = file.metadata().await.ok().map(|m| m.len());
+            Ok(OpenedSource {
+                stream: Box::pin(tokio_file_stream(file)),
+                content_type: None,
+                content_length: len,
+                final_url_redacted: None,
+                status: None,
+            })
+        }
+    }
+}
 
 /// Import (or refresh) an M3U playlist into `playlist_id`.
 pub async fn import_m3u(
@@ -60,27 +106,8 @@ pub async fn import_m3u(
     emit("fetching", 0, 0, None);
 
     // ---- open the byte stream --------------------------------------------------------
-    let (mut stream, content_type, total_len): (ByteStream, Option<String>, Option<u64>) = match &source {
-        ImportSource::Url { url, user_agent } => {
-            let client = HttpClient::new(user_agent.as_deref())?;
-            let resp = client.get_stream(url).await?;
-            tracing::info!(
-                status = resp.status,
-                content_type = ?resp.content_type,
-                len = ?resp.content_length,
-                hops = resp.redirect_hops,
-                url = %app_core::redact::redact(&resp.final_url),
-                "playlist GET"
-            );
-            (Box::pin(map_body(resp.body)), resp.content_type, resp.content_length)
-        }
-        ImportSource::File { path } => {
-            let file = tokio::fs::File::open(path).await?;
-            let len = file.metadata().await.ok().map(|m| m.len());
-            let stream = tokio_file_stream(file);
-            (Box::pin(stream), None, len)
-        }
-    };
+    let opened = open_source(&source).await?;
+    let (mut stream, content_type, total_len) = (opened.stream, opened.content_type, opened.content_length);
 
     // ---- preflight on the first 512 bytes --------------------------------------------
     let mut head: Vec<u8> = Vec::with_capacity(SNIFF_BYTES);

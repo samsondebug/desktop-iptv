@@ -19,6 +19,18 @@ pub struct ChannelInsert {
     pub catchup_days: i32,
 }
 
+/// UI-safe playlist metadata.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct PlaylistMeta {
+    pub id: i64,
+    pub r#type: String,
+    pub epg_offset_min: i32,
+    pub stream_format: String,
+    pub account_json: Option<String>,
+    pub last_synced: Option<String>,
+    pub last_error: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct PlaylistInsert {
     pub r#type: String, // 'm3u' | 'xtream' | 'stalker'
@@ -94,6 +106,84 @@ impl Db {
         })
     }
 
+    /// Per-playlist metadata safe for the UI (no secrets).
+    pub fn playlist_meta(&self, id: i64) -> Result<PlaylistMeta> {
+        self.with_read(|c| {
+            c.query_row(
+                "SELECT id, type, epg_offset_min, stream_format, account_json, last_synced, last_error FROM playlists WHERE id = ?1",
+                params![id],
+                |r| {
+                    Ok(PlaylistMeta {
+                        id: r.get(0)?,
+                        r#type: r.get(1)?,
+                        epg_offset_min: r.get(2)?,
+                        stream_format: r.get(3)?,
+                        account_json: r.get(4)?,
+                        last_synced: r.get(5)?,
+                        last_error: r.get(6)?,
+                    })
+                },
+            )
+            .optional()?
+            .ok_or(DbError::NotFound)
+        })
+    }
+
+    /// Xtream account info (status, expiry, max connections…) — never the password.
+    pub fn set_playlist_account_json(&self, id: i64, json: Option<&str>) -> Result<()> {
+        self.with_write(|c| {
+            c.execute("UPDATE playlists SET account_json = ?2 WHERE id = ?1", params![id, json])?;
+            Ok(())
+        })
+    }
+
+    pub fn set_playlist_sync_result(&self, id: i64, error: Option<&str>) -> Result<()> {
+        self.with_write(|c| {
+            c.execute(
+                "UPDATE playlists SET last_synced = CURRENT_TIMESTAMP, last_error = ?2 WHERE id = ?1",
+                params![id, error.map(app_core::redact::redact)],
+            )?;
+            Ok(())
+        })
+    }
+
+    pub fn set_playlist_stream_format(&self, id: i64, fmt: &str) -> Result<()> {
+        let fmt = if fmt == "m3u8" { "m3u8" } else { "ts" };
+        self.with_write(|c| {
+            c.execute("UPDATE playlists SET stream_format = ?2 WHERE id = ?1", params![id, fmt])?;
+            Ok(())
+        })
+    }
+
+    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<()> {
+        self.with_write(|c| {
+            c.execute("UPDATE playlists SET name = ?2 WHERE id = ?1", params![id, name.trim()])?;
+            Ok(())
+        })
+    }
+
+    /// Bump the sync generation for a playlist before an upsert pass, then remove rows the pass
+    /// did not touch with [`Db::delete_stale_channels`].
+    pub fn next_sync_gen(&self, playlist_id: i64) -> Result<i64> {
+        self.with_read(|c| {
+            let g: i64 = c.query_row(
+                "SELECT COALESCE(MAX(sync_gen), 0) + 1 FROM channels WHERE playlist_id = ?1",
+                params![playlist_id],
+                |r| r.get(0),
+            )?;
+            Ok(g)
+        })
+    }
+
+    pub fn delete_stale_channels(&self, playlist_id: i64, keep_gen: i64) -> Result<u64> {
+        self.with_write(|c| {
+            Ok(c.execute(
+                "DELETE FROM channels WHERE playlist_id = ?1 AND sync_gen < ?2",
+                params![playlist_id, keep_gen],
+            )? as u64)
+        })
+    }
+
     /// Raw playlist row (with secrets) — for adapters only. Never send to the UI.
     pub fn playlist_source(&self, id: i64) -> Result<PlaylistInsert> {
         self.with_read(|c| {
@@ -122,10 +212,21 @@ impl Db {
     /// Upsert a batch of channels. Chunks into transactions of at most 5,000 rows.
     /// Returns (inserted, updated).
     pub fn upsert_channels(&self, playlist_id: i64, rows: &[ChannelInsert]) -> Result<(u64, u64)> {
+        self.upsert_channels_gen(playlist_id, rows, None)
+    }
+
+    /// Same as [`Db::upsert_channels`] but stamps `sync_gen` so untouched rows can be removed
+    /// afterwards with [`Db::delete_stale_channels`].
+    pub fn upsert_channels_gen(
+        &self,
+        playlist_id: i64,
+        rows: &[ChannelInsert],
+        sync_gen: Option<i64>,
+    ) -> Result<(u64, u64)> {
         let mut inserted = 0u64;
         let mut updated = 0u64;
         for chunk in rows.chunks(MAX_ROWS_PER_TX) {
-            let (i, u) = self.with_write(|c| upsert_chunk(c, playlist_id, chunk))?;
+            let (i, u) = self.with_write(|c| upsert_chunk(c, playlist_id, chunk, sync_gen))?;
             inserted += i;
             updated += u;
         }
@@ -269,14 +370,19 @@ impl Db {
     }
 }
 
-fn upsert_chunk(c: &mut Connection, playlist_id: i64, chunk: &[ChannelInsert]) -> Result<(u64, u64)> {
+fn upsert_chunk(
+    c: &mut Connection,
+    playlist_id: i64,
+    chunk: &[ChannelInsert],
+    sync_gen: Option<i64>,
+) -> Result<(u64, u64)> {
     let tx = c.transaction()?;
     let before: i64 =
         tx.query_row("SELECT COUNT(*) FROM channels WHERE playlist_id = ?1", params![playlist_id], |r| r.get(0))?;
     {
         let mut st = tx.prepare_cached(
-            r#"INSERT INTO channels(playlist_id, source_id, name, normalized_name, "group", logo, stream_url, tvg_id, tvg_name, catchup, catchup_days)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            r#"INSERT INTO channels(playlist_id, source_id, name, normalized_name, "group", logo, stream_url, tvg_id, tvg_name, catchup, catchup_days, sync_gen)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, COALESCE(?12, 0))
                ON CONFLICT(playlist_id, source_id) DO UPDATE SET
                  name = excluded.name,
                  normalized_name = excluded.normalized_name,
@@ -310,7 +416,18 @@ fn upsert_chunk(c: &mut Connection, playlist_id: i64, chunk: &[ChannelInsert]) -
                 row.tvg_name,
                 row.catchup as i32,
                 row.catchup_days,
+                sync_gen,
             ])?;
+        }
+        if let Some(g) = sync_gen {
+            // Stamp the generation separately so unchanged rows are not re-indexed by the FTS
+            // trigger (which fires on any UPDATE that mentions the indexed columns).
+            let mut stamp = tx.prepare_cached(
+                "UPDATE channels SET sync_gen = ?3 WHERE playlist_id = ?1 AND source_id = ?2 AND sync_gen <> ?3",
+            )?;
+            for row in chunk {
+                stamp.execute(params![playlist_id, row.source_id, g])?;
+            }
         }
     }
     let after: i64 =
@@ -380,6 +497,19 @@ mod tests {
         let pls = db.list_playlists().unwrap();
         assert_eq!(pls[0].channel_count, 12_000);
         assert!(pls[0].base_url_redacted.contains("password=***"));
+    }
+
+    #[test]
+    fn sync_gen_removes_stale_rows() {
+        let db = Db::open_in_memory().unwrap();
+        let p = pl(&db);
+        db.upsert_channels(p, &[ch(1, "g"), ch(2, "g"), ch(3, "g")]).unwrap();
+        let g = db.next_sync_gen(p).unwrap();
+        db.upsert_channels_gen(p, &[ch(1, "g"), ch(3, "g")], Some(g)).unwrap();
+        assert_eq!(db.delete_stale_channels(p, g).unwrap(), 1);
+        let names: Vec<_> = db.list_channels(p, None, 10, 0).unwrap().into_iter().map(|c| c.name).collect();
+        assert_eq!(names, ["Chänñel 1", "Chänñel 3"]);
+        assert_eq!(db.search_count("channel 2", p).unwrap(), 0, "FTS row removed too");
     }
 
     #[test]

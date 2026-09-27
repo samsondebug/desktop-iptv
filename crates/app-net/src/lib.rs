@@ -14,9 +14,10 @@ pub mod http;
 pub mod importer;
 pub mod m3u;
 pub mod preflight;
+pub mod xmltv;
 
 pub use http::HttpClient;
-pub use importer::{import_m3u, ImportSource, ProgressSink};
+pub use importer::{import_m3u, open_source, ImportSource, ProgressSink};
 
 #[derive(Debug, thiserror::Error)]
 pub enum NetError {
