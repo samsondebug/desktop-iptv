@@ -186,15 +186,16 @@ impl Db {
     }
 
     pub fn vod_count(&self, playlist_id: i64, kind: &str, category: Option<&str>) -> Result<i64> {
+        let hidden = self.hidden_clause(&["title", "category"]);
         self.with_read(|c| {
             Ok(match category {
                 Some(g) => c.query_row(
-                    "SELECT COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 AND category = ?3",
+                    &format!("SELECT COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 AND category = ?3{hidden}"),
                     params![playlist_id, kind, g],
                     |r| r.get(0),
                 )?,
                 None => c.query_row(
-                    "SELECT COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2",
+                    &format!("SELECT COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2{hidden}"),
                     params![playlist_id, kind],
                     |r| r.get(0),
                 )?,
@@ -219,18 +220,19 @@ impl Db {
             _ => "COALESCE(added, 0) DESC, id DESC",
         };
         let limit = limit.clamp(1, 1_000) as i64;
+        let hidden = self.hidden_clause(&["title", "category"]);
         self.with_read(|c| {
             let rows = match category {
                 Some(g) => {
                     let mut st = c.prepare_cached(&format!(
-                        "SELECT {VOD_COLS} FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 AND category = ?3 ORDER BY {order} LIMIT ?4 OFFSET ?5"
+                        "SELECT {VOD_COLS} FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 AND category = ?3{hidden} ORDER BY {order} LIMIT ?4 OFFSET ?5"
                     ))?;
                     let it = st.query_map(params![playlist_id, kind, g, limit, offset as i64], row_to_vod)?;
                     it.collect::<std::result::Result<Vec<_>, _>>()?
                 }
                 None => {
                     let mut st = c.prepare_cached(&format!(
-                        "SELECT {VOD_COLS} FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 ORDER BY {order} LIMIT ?3 OFFSET ?4"
+                        "SELECT {VOD_COLS} FROM vod_items WHERE playlist_id = ?1 AND kind = ?2{hidden} ORDER BY {order} LIMIT ?3 OFFSET ?4"
                     ))?;
                     let it = st.query_map(params![playlist_id, kind, limit, offset as i64], row_to_vod)?;
                     it.collect::<std::result::Result<Vec<_>, _>>()?
@@ -241,10 +243,11 @@ impl Db {
     }
 
     pub fn vod_groups(&self, playlist_id: i64, kind: &str) -> Result<Vec<VodGroup>> {
+        let hidden = self.hidden_clause(&["title", "category"]);
         self.with_read(|c| {
-            let mut st = c.prepare_cached(
-                "SELECT COALESCE(category, ''), COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 GROUP BY category ORDER BY MIN(id)",
-            )?;
+            let mut st = c.prepare_cached(&format!(
+                "SELECT COALESCE(category, ''), COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2{hidden} GROUP BY category ORDER BY MIN(id)"
+            ))?;
             let it = st.query_map(params![playlist_id, kind], |r| Ok(VodGroup { category: r.get(0)?, count: r.get(1)? }))?;
             Ok(it.collect::<std::result::Result<Vec<_>, _>>()?)
         })
@@ -269,10 +272,11 @@ impl Db {
         let Some(m) = crate::search::build_match(query) else {
             return Ok(Vec::new());
         };
+        let hidden = self.hidden_clause(&["v.title", "v.category"]);
         self.with_read(|c| {
             let mut st = c.prepare_cached(&format!(
                 "SELECT {} FROM search_idx s JOIN vod_items v ON v.id = s.item_id
-                 WHERE search_idx MATCH ?1 AND s.content_type = 'vod' AND (?2 = 0 OR s.playlist_id = ?2) AND (?3 IS NULL OR v.kind = ?3)
+                 WHERE search_idx MATCH ?1 AND s.content_type = 'vod' AND (?2 = 0 OR s.playlist_id = ?2) AND (?3 IS NULL OR v.kind = ?3){hidden}
                  ORDER BY bm25(search_idx, 10.0, 1.0), v.id LIMIT ?4",
                 VOD_COLS.split(", ").map(|c| format!("v.{c}")).collect::<Vec<_>>().join(", ")
             ))?;

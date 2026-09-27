@@ -65,7 +65,7 @@ fn plays_a_mpegts_file_and_reports_zap_and_telemetry() {
     }));
 
     let t0 = Instant::now();
-    engine.load(ts.to_str().unwrap(), ProfileMode::LowLatency, 100).unwrap();
+    engine.load(ts.to_str().unwrap(), ProfileMode::LowLatency, 100, None).unwrap();
 
     let mut started: Option<u64> = None;
     let mut ended: Option<String> = None;
@@ -99,7 +99,7 @@ fn plays_a_mpegts_file_and_reports_zap_and_telemetry() {
 
     // Profile switch + a second load on the same instance (zap path).
     engine.set_profile(ProfineModeCompat::stable()).unwrap();
-    engine.load(ts.to_str().unwrap(), ProfileMode::Stable, 120).unwrap();
+    engine.load(ts.to_str().unwrap(), ProfileMode::Stable, 120, Some(4.0)).unwrap();
     let t1 = Instant::now();
     let mut second = None;
     while t1.elapsed() < Duration::from_secs(10) {

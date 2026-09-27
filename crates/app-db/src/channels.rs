@@ -234,18 +234,19 @@ impl Db {
     }
 
     pub fn channel_count(&self, playlist_id: i64, group_title: Option<&str>) -> Result<i64> {
+        let hidden = self.hidden_clause(&["name", "\"group\""]);
         self.with_read(|c| {
             let n: i64 = match group_title {
                 Some(g) => c.query_row(
-                    r#"SELECT COUNT(*) FROM channels WHERE playlist_id = ?1 AND "group" = ?2"#,
+                    &format!(r#"SELECT COUNT(*) FROM channels WHERE playlist_id = ?1 AND "group" = ?2{hidden}"#),
                     params![playlist_id, g],
                     |r| r.get(0),
                 )?,
-                None => {
-                    c.query_row("SELECT COUNT(*) FROM channels WHERE playlist_id = ?1", params![playlist_id], |r| {
-                        r.get(0)
-                    })?
-                }
+                None => c.query_row(
+                    &format!("SELECT COUNT(*) FROM channels WHERE playlist_id = ?1{hidden}"),
+                    params![playlist_id],
+                    |r| r.get(0),
+                )?,
             };
             Ok(n)
         })
@@ -261,18 +262,19 @@ impl Db {
     ) -> Result<Vec<ChannelRecord>> {
         let limit = limit.clamp(1, 2_000) as i64;
         let offset = offset as i64;
+        let hidden = self.hidden_clause(&["name", "\"group\""]);
         self.with_read(|c| {
             let rows = match group_title {
                 Some(g) => {
                     let mut st = c.prepare_cached(&format!(
-                        r#"SELECT {CHANNEL_COLS} FROM channels WHERE playlist_id = ?1 AND "group" = ?2 ORDER BY id LIMIT ?3 OFFSET ?4"#
+                        r#"SELECT {CHANNEL_COLS} FROM channels WHERE playlist_id = ?1 AND "group" = ?2{hidden} ORDER BY id LIMIT ?3 OFFSET ?4"#
                     ))?;
                     let it = st.query_map(params![playlist_id, g, limit, offset], row_to_channel)?;
                     it.collect::<std::result::Result<Vec<_>, _>>()?
                 }
                 None => {
                     let mut st = c.prepare_cached(&format!(
-                        "SELECT {CHANNEL_COLS} FROM channels WHERE playlist_id = ?1 ORDER BY id LIMIT ?2 OFFSET ?3"
+                        "SELECT {CHANNEL_COLS} FROM channels WHERE playlist_id = ?1{hidden} ORDER BY id LIMIT ?2 OFFSET ?3"
                     ))?;
                     let it = st.query_map(params![playlist_id, limit, offset], row_to_channel)?;
                     it.collect::<std::result::Result<Vec<_>, _>>()?
@@ -291,11 +293,12 @@ impl Db {
     }
 
     pub fn list_groups(&self, playlist_id: i64) -> Result<Vec<GroupSummary>> {
+        let hidden = self.hidden_clause(&["name", "\"group\""]);
         self.with_read(|c| {
-            let mut st = c.prepare_cached(
-                r#"SELECT COALESCE("group", ''), COUNT(*) FROM channels WHERE playlist_id = ?1
-                   GROUP BY "group" ORDER BY MIN(id)"#,
-            )?;
+            let mut st = c.prepare_cached(&format!(
+                r#"SELECT COALESCE("group", ''), COUNT(*) FROM channels WHERE playlist_id = ?1{hidden}
+                   GROUP BY "group" ORDER BY MIN(id)"#
+            ))?;
             let rows = st.query_map(params![playlist_id], |r| {
                 Ok(GroupSummary { group_title: r.get(0)?, channel_count: r.get(1)? })
             })?;
@@ -324,9 +327,10 @@ impl Db {
 
     pub fn favorite_channels(&self) -> Result<Vec<ChannelRecord>> {
         self.with_read(|c| {
+            let hidden = self.hidden_clause(&["name", "\"group\""]);
             let mut st = c.prepare_cached(&format!(
                 "SELECT {CHANNEL_COLS} FROM channels WHERE id IN
-                 (SELECT item_id FROM favorites WHERE user_scope = 'default' AND item_type = 'channel') ORDER BY id"
+                 (SELECT item_id FROM favorites WHERE user_scope = 'default' AND item_type = 'channel'){hidden} ORDER BY id"
             ))?;
             let it = st.query_map([], row_to_channel)?;
             Ok(it.collect::<std::result::Result<Vec<_>, _>>()?)
@@ -361,8 +365,9 @@ impl Db {
 
     pub fn recent_channels(&self, limit: usize) -> Result<Vec<ChannelRecord>> {
         self.with_read(|c| {
+            let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]);
             let mut st = c.prepare_cached(&format!(
-                "SELECT {CHANNEL_COLS_CH} FROM channels ch JOIN recents r ON r.channel_id = ch.id ORDER BY r.viewed_at DESC LIMIT ?1"
+                "SELECT {CHANNEL_COLS_CH} FROM channels ch JOIN recents r ON r.channel_id = ch.id WHERE 1=1{hidden} ORDER BY r.viewed_at DESC LIMIT ?1"
             ))?;
             let it = st.query_map(params![limit as i64], row_to_channel)?;
             Ok(it.collect::<std::result::Result<Vec<_>, _>>()?)
@@ -497,6 +502,23 @@ mod tests {
         let pls = db.list_playlists().unwrap();
         assert_eq!(pls[0].channel_count, 12_000);
         assert!(pls[0].base_url_redacted.contains("password=***"));
+    }
+
+    #[test]
+    fn hidden_keywords_filter_everything() {
+        let db = Db::open_in_memory().unwrap();
+        let p = pl(&db);
+        let mut rows = vec![ch(1, "News"), ch(2, "Adult XXX"), ch(3, "Sports")];
+        rows[2].name = "Late Night xXx Show".into();
+        db.upsert_channels(p, &rows).unwrap();
+        assert_eq!(db.channel_count(p, None).unwrap(), 3);
+        db.set_hidden_keywords(&["xxx".into(), "  ".into(), "O'Reilly".into()]);
+        assert_eq!(db.channel_count(p, None).unwrap(), 1);
+        assert_eq!(db.list_channels(p, None, 10, 0).unwrap()[0].name, "Chänñel 1");
+        assert_eq!(db.list_groups(p).unwrap().len(), 1);
+        assert_eq!(db.search_count("channel", p).unwrap(), 1);
+        db.set_hidden_keywords(&[]);
+        assert_eq!(db.channel_count(p, None).unwrap(), 3);
     }
 
     #[test]

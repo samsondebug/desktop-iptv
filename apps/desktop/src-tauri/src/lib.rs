@@ -5,18 +5,21 @@
 
 mod commands;
 mod state;
+mod sync;
 
+use app_engine::EngineEvent;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
 pub use state::AppState;
 
 /// Name of the event that carries `app_engine::EngineEvent` payloads to the frontend.
 pub const EV_ENGINE: &str = "engine_event";
-/// `app_core::ImportProgressEvent`
+/// `sync::ProgressPayload` (ImportProgressEvent + phase)
 pub const EV_IMPORT_PROGRESS: &str = "import_progress";
-/// `commands::ImportDone`
+/// `sync::ImportDone`
 pub const EV_IMPORT_DONE: &str = "import_done";
 
 fn init_tracing() {
@@ -40,6 +43,59 @@ fn window_id(window: &tauri::WebviewWindow) -> Option<i64> {
             None
         }
         _ => None,
+    }
+}
+
+/// Engine events → frontend, plus the backend-side reactions (VOD progress, auto-next).
+fn on_engine_event(app: &tauri::AppHandle, ev: EngineEvent) {
+    let _ = app.emit(EV_ENGINE, &ev);
+    let Some(state) = app.try_state::<AppState>() else { return };
+    match ev {
+        EngineEvent::Telemetry(t) => {
+            // Persist VOD progress every ~5 s while playing.
+            let due = {
+                let mut pb = state.playback.lock().unwrap();
+                if !pb.is_vod() || t.time_pos_s < 1.0 {
+                    false
+                } else {
+                    let due = pb.progress_saved_at.map(|at| at.elapsed() >= Duration::from_secs(5)).unwrap_or(true)
+                        && (t.time_pos_s as i64 - pb.last_saved_pos).abs() >= 3;
+                    if due {
+                        pb.progress_saved_at = Some(Instant::now());
+                        pb.last_saved_pos = t.time_pos_s as i64;
+                    }
+                    due
+                }
+            };
+            if due {
+                commands::playback::save_progress_now(&state);
+            }
+        }
+        EngineEvent::EndFile { reason, .. } if reason == "eof" => {
+            // Auto-next episode (CLAUDE.md §8 "Continue watching + auto-next episode").
+            let item = state.playback.lock().unwrap().item.clone();
+            if let state::PlaybackItem::Episode { id, .. } = item {
+                let _ = state.db.set_progress("episode", id, i64::MAX / 4, Some(1)); // mark finished
+                if let Ok(Some(next)) = state.db.next_episode(id) {
+                    tracing::info!(episode = next.id, "auto-next");
+                    let start = state.db.get_progress("episode", next.id).ok().flatten().filter(|p| !p.finished).map(|p| p.position_s as f64);
+                    if commands::playback::do_load(
+                        &state,
+                        &next.stream_url,
+                        app_core::ProfileMode::Stable,
+                        state::PlaybackItem::Episode { id: next.id, series_id: next.series_id },
+                        start,
+                    )
+                    .is_ok()
+                    {
+                        commands::playback::emit_playback(app, &state);
+                    }
+                }
+            } else if let state::PlaybackItem::Vod { id } = item {
+                let _ = state.db.set_progress("vod", id, i64::MAX / 4, Some(1));
+            }
+        }
+        _ => {}
     }
 }
 
@@ -79,31 +135,45 @@ pub fn run() {
                 user_agent: Some(app_net::http::DEFAULT_USER_AGENT.to_string()),
             });
 
-            // Engine events → frontend.
             let handle = app.handle().clone();
-            engine.set_listener(Arc::new(move |ev| {
-                let _ = handle.emit(EV_ENGINE, &ev);
-            }));
+            engine.set_listener(Arc::new(move |ev| on_engine_event(&handle, ev)));
 
-            app.manage(AppState::new(db, engine, data_dir));
+            let state = AppState::new(db.clone(), engine, data_dir);
+            let _ = commands::parental::apply_filter(&state);
+            app.manage(state);
+
+            // Housekeeping: recordings that were scheduled while the app was closed.
+            let _ = db.expire_missed_recordings(commands::now_unix());
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
                 if let Some(state) = window.try_state::<AppState>() {
+                    commands::playback::save_progress_now(&state);
                     state.engine.shutdown();
                 }
             }
         })
         .invoke_handler(tauri::generate_handler![
+            // bootstrap / config / license / theme
             commands::get_bootstrap,
             commands::get_config,
             commands::set_config,
             commands::accept_legal,
+            commands::get_license_state,
+            commands::activate_license,
+            commands::get_machine_guid,
+            commands::get_theme_tokens,
+            commands::set_theme_tokens,
+            // playlists / catalog
             commands::add_playlist,
             commands::refresh_playlist,
             commands::delete_playlist,
+            commands::rename_playlist,
             commands::list_playlists,
+            commands::playlist_meta,
+            commands::set_stream_format,
+            commands::is_syncing,
             commands::list_groups,
             commands::list_channels,
             commands::count_channels,
@@ -113,21 +183,56 @@ pub fn run() {
             commands::get_favorite_ids,
             commands::set_favorite,
             commands::get_recents,
+            // playback
+            commands::get_playback_state,
             commands::play_channel,
+            commands::play_vod,
+            commands::play_episode,
             commands::load_stream,
             commands::stop_playback,
             commands::set_profile,
             commands::set_pause,
             commands::set_mute,
             commands::set_volume,
+            commands::seek,
             commands::set_video_rect,
             commands::get_telemetry,
             commands::engine_get_property,
             commands::engine_set_property,
             commands::engine_command,
-            commands::get_license_state,
-            commands::activate_license,
-            commands::get_machine_guid,
+            commands::engine_tracks,
+            commands::engine_select_track,
+            commands::open_in_external_player,
+            // epg
+            commands::epg_grid,
+            commands::epg_now_next,
+            commands::epg_stats,
+            commands::set_epg_offset,
+            commands::set_epg_override,
+            commands::get_epg_override,
+            commands::epg_search_ids,
+            commands::list_epg_sources,
+            commands::add_epg_source,
+            commands::delete_epg_source,
+            commands::refresh_epg,
+            // vod
+            commands::list_vod,
+            commands::count_vod,
+            commands::vod_groups,
+            commands::search_vod,
+            commands::get_vod,
+            commands::series_detail,
+            commands::continue_watching,
+            commands::get_progress,
+            commands::clear_progress,
+            commands::refresh_vod,
+            // parental
+            commands::parental_status,
+            commands::set_parental_pin,
+            commands::clear_parental_pin,
+            commands::unlock_parental,
+            commands::lock_parental,
+            commands::set_parental_keywords,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

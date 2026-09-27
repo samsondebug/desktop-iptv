@@ -49,6 +49,9 @@ pub struct Db {
     path: PathBuf,
     writer: Mutex<Connection>,
     readers: Mutex<Vec<Connection>>,
+    /// Parental keyword filter (lowercase). When non-empty, list/search queries exclude rows whose
+    /// name/title or group/category contains any keyword.
+    hidden: std::sync::RwLock<Vec<String>>,
 }
 
 impl std::fmt::Debug for Db {
@@ -92,7 +95,7 @@ impl Db {
             }
         }
         let writer = open_conn(&path)?;
-        let db = Self { path, writer: Mutex::new(writer), readers: Mutex::new(Vec::new()) };
+        let db = Self { path, writer: Mutex::new(writer), readers: Mutex::new(Vec::new()), hidden: Default::default() };
         db.migrate()?;
         Ok(db)
     }
@@ -103,9 +106,45 @@ impl Db {
         let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let uri = format!("file:memdb{}_{}?mode=memory&cache=shared", std::process::id(), n);
         let writer = open_conn(Path::new(&uri))?;
-        let db = Self { path: PathBuf::from(uri), writer: Mutex::new(writer), readers: Mutex::new(Vec::new()) };
+        let db = Self {
+            path: PathBuf::from(uri),
+            writer: Mutex::new(writer),
+            readers: Mutex::new(Vec::new()),
+            hidden: Default::default(),
+        };
         db.migrate()?;
         Ok(db)
+    }
+
+    /// Set the parental keyword filter applied to catalog queries (empty = show everything).
+    pub fn set_hidden_keywords(&self, keywords: &[String]) {
+        let mut kws: Vec<String> =
+            keywords.iter().map(|k| k.trim().to_lowercase()).filter(|k| !k.is_empty()).collect();
+        kws.sort();
+        kws.dedup();
+        *self.hidden.write().unwrap() = kws;
+    }
+
+    pub fn hidden_keywords(&self) -> Vec<String> {
+        self.hidden.read().unwrap().clone()
+    }
+
+    /// SQL fragment (starting with " AND ") that excludes rows matching the hidden keywords, or
+    /// an empty string. Keywords are embedded as escaped SQL string literals (they are lowercased
+    /// and single quotes doubled), never interpolated raw.
+    pub fn hidden_clause(&self, cols: &[&str]) -> String {
+        let kws = self.hidden.read().unwrap();
+        if kws.is_empty() || cols.is_empty() {
+            return String::new();
+        }
+        let mut parts = Vec::new();
+        for kw in kws.iter() {
+            let lit = kw.replace('\'', "''");
+            for c in cols {
+                parts.push(format!("instr(lower(COALESCE({c}, '')), '{lit}') > 0"));
+            }
+        }
+        format!(" AND NOT ({})", parts.join(" OR "))
     }
 
     pub fn path(&self) -> &Path {

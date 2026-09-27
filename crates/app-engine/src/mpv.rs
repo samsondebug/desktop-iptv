@@ -21,6 +21,9 @@ const OBS_PAUSED_FOR_CACHE: u64 = 7;
 const OBS_DROPPED: u64 = 8;
 const OBS_IDLE: u64 = 9;
 const OBS_BUFFERING_PCT: u64 = 10;
+const OBS_TIME_POS: u64 = 11;
+const OBS_DURATION: u64 = 12;
+const OBS_PAUSE: u64 = 13;
 
 const OBSERVED: &[(u64, &str, c_int)] = &[
     (OBS_W, "video-params/w", ffi::MPV_FORMAT_INT64),
@@ -33,6 +36,9 @@ const OBSERVED: &[(u64, &str, c_int)] = &[
     (OBS_DROPPED, "frame-drop-count", ffi::MPV_FORMAT_INT64),
     (OBS_IDLE, "core-idle", ffi::MPV_FORMAT_FLAG),
     (OBS_BUFFERING_PCT, "cache-buffering-state", ffi::MPV_FORMAT_INT64),
+    (OBS_TIME_POS, "time-pos", ffi::MPV_FORMAT_DOUBLE),
+    (OBS_DURATION, "duration", ffi::MPV_FORMAT_DOUBLE),
+    (OBS_PAUSE, "pause", ffi::MPV_FORMAT_FLAG),
 ];
 
 /// Raw handle wrapper. libmpv's client API is thread-safe for commands/properties;
@@ -240,7 +246,7 @@ impl PlayerEngine for MpvEngine {
         self.description.clone()
     }
 
-    fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16) -> Result<()> {
+    fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16, start_secs: Option<f64>) -> Result<()> {
         self.shared.ensure_alive()?;
         if self.active_profile() != profile {
             self.set_profile(profile)?;
@@ -255,8 +261,15 @@ impl PlayerEngine for MpvEngine {
         }
         self.shared.set_prop("volume", &audio_boost.clamp(0, 130).to_string())?;
         self.shared.set_prop("pause", "no")?;
+        // `start` applies to the next loaded file; "none" restores the default.
+        let start = start_secs.filter(|s| *s > 1.0).map(|s| format!("{s:.1}")).unwrap_or_else(|| "none".into());
+        let _ = self.shared.set_prop("start", &start);
         tracing::info!(url = %redacted, profile = profile.as_str(), "loadfile replace");
         self.shared.cmd(&["loadfile", url, "replace"])
+    }
+
+    fn seek(&self, secs: f64) -> Result<()> {
+        self.shared.cmd(&["seek", &format!("{:.2}", secs.max(0.0)), "absolute"])
     }
 
     fn stop(&self) -> Result<()> {
@@ -395,6 +408,9 @@ fn event_loop(s: Arc<Shared>) {
                         }
                     }
                     OBS_IDLE => playing = !prop_flag(prop).unwrap_or(true),
+                    OBS_TIME_POS => t.time_pos_s = prop_f64(prop).unwrap_or(0.0).max(0.0),
+                    OBS_DURATION => t.duration_s = prop_f64(prop).unwrap_or(0.0).max(0.0),
+                    OBS_PAUSE => t.paused = prop_flag(prop).unwrap_or(false),
                     OBS_BUFFERING_PCT => {}
                     _ => {}
                 }

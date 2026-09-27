@@ -93,7 +93,10 @@ pub trait PlayerEngine: Send + Sync {
     fn describe(&self) -> String;
 
     /// Zap: `loadfile <url> replace`. Applies `profile` first if it differs from the active one.
-    fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16) -> Result<()>;
+    /// `start_secs` resumes VOD at a position (ignored for live streams).
+    fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16, start_secs: Option<f64>) -> Result<()>;
+    /// Absolute seek (VOD).
+    fn seek(&self, secs: f64) -> Result<()>;
     fn stop(&self) -> Result<()>;
 
     /// Switch profile. Live-switchable keys apply immediately; the caller decides whether to

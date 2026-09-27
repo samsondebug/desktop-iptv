@@ -51,9 +51,9 @@ impl PlayerEngine for StubEngine {
         format!("stub engine (no video) — {}", self.reason)
     }
 
-    fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16) -> Result<()> {
+    fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16, start_secs: Option<f64>) -> Result<()> {
         let redacted = app_core::redact::redact(url);
-        tracing::info!(url = %redacted, profile = profile.as_str(), audio_boost, "[stub] loadfile replace");
+        tracing::info!(url = %redacted, profile = profile.as_str(), audio_boost, ?start_secs, "[stub] loadfile replace");
         *self.profile.lock().unwrap() = profile;
         let gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
         {
@@ -78,6 +78,9 @@ impl PlayerEngine for StubEngine {
                 cache_duration_secs: if profile == ProfileMode::LowLatency { 2.4 } else { 18.9 },
                 is_underrun: false,
                 zap_ms: Some(zap),
+                time_pos_s: 0.0,
+                duration_s: 0.0,
+                paused: false,
             };
             *tele.lock().unwrap() = snapshot.clone();
             if let Some(l) = &listener {
@@ -94,6 +97,11 @@ impl PlayerEngine for StubEngine {
             }
             let _ = gen;
         });
+        Ok(())
+    }
+
+    fn seek(&self, secs: f64) -> Result<()> {
+        tracing::info!(secs, "[stub] seek");
         Ok(())
     }
 

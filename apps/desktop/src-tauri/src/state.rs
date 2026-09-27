@@ -1,17 +1,54 @@
 use app_engine::PlayerEngine;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+/// What the engine is currently playing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PlaybackItem {
+    #[default]
+    None,
+    Channel {
+        id: i64,
+    },
+    Vod {
+        id: i64,
+    },
+    Episode {
+        id: i64,
+        series_id: i64,
+    },
+    /// Raw URL from Diagnostics.
+    Url,
+}
 
 /// Playback bookkeeping the command layer needs across calls.
 #[derive(Debug, Clone, Default)]
 pub struct Playback {
-    pub channel_id: Option<i64>,
+    pub item: PlaybackItem,
     /// Unredacted; never leaves Rust.
     pub stream_url: Option<String>,
     pub profile: app_core::ProfileMode,
     pub volume: u16,
     pub muted: bool,
     pub paused: bool,
+    /// Last time VOD progress was persisted.
+    pub progress_saved_at: Option<Instant>,
+    pub last_saved_pos: i64,
+}
+
+impl Playback {
+    pub fn channel_id(&self) -> Option<i64> {
+        match self.item {
+            PlaybackItem::Channel { id } => Some(id),
+            _ => None,
+        }
+    }
+    pub fn is_vod(&self) -> bool {
+        matches!(self.item, PlaybackItem::Vod { .. } | PlaybackItem::Episode { .. })
+    }
 }
 
 pub struct AppState {
@@ -20,6 +57,8 @@ pub struct AppState {
     pub data_dir: PathBuf,
     pub playback: Mutex<Playback>,
     pub machine_guid: String,
+    /// Parental lock: unlocked for this session?
+    pub parental_unlocked: Mutex<bool>,
 }
 
 impl AppState {
@@ -30,6 +69,13 @@ impl AppState {
             volume: cfg.audio_boost,
             ..Default::default()
         };
-        Self { db, engine, data_dir, playback: Mutex::new(playback), machine_guid: app_core::license::machine_guid() }
+        Self {
+            db,
+            engine,
+            data_dir,
+            playback: Mutex::new(playback),
+            machine_guid: app_core::license::machine_guid(),
+            parental_unlocked: Mutex::new(false),
+        }
     }
 }

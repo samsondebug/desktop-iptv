@@ -159,6 +159,13 @@ pub struct EngineTelemetryEvent {
     pub cache_duration_secs: f64,
     pub is_underrun: bool,
     pub zap_ms: Option<u64>,
+    /// VOD only: current position / total length in seconds (0 for live).
+    #[serde(default)]
+    pub time_pos_s: f64,
+    #[serde(default)]
+    pub duration_s: f64,
+    #[serde(default)]
+    pub paused: bool,
 }
 
 /// Paged list request for the virtualized Live list. Keyset paging by `id`.
@@ -206,4 +213,7 @@ pub struct SyncStats {
     pub groups: u64,
     pub elapsed_ms: u64,
     pub warnings: Vec<String>,
+    /// EPG hint discovered in the source (M3U `url-tvg`), raw (may contain credentials).
+    #[serde(default, skip_serializing)]
+    pub epg_url: Option<String>,
 }

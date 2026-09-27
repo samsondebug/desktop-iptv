@@ -167,6 +167,7 @@ pub async fn import_m3u(
     }
     if let Some(tvg) = &parser.header().tvg_url {
         stats.warnings.push(format!("playlist advertises an EPG at {}", app_core::redact::redact(tvg)));
+        stats.epg_url = Some(tvg.clone());
     }
     if ingest.channels_seen == 0 {
         stats.warnings.push("no channels found".into());

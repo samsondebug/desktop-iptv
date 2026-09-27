@@ -37,18 +37,19 @@ impl Db {
             return Ok(Vec::new());
         };
         let limit = limit.clamp(1, 1_000) as i64;
+        let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]);
         self.with_read(|c| {
-            let mut st = c.prepare_cached(
+            let mut st = c.prepare_cached(&format!(
                 r#"SELECT ch.id, ch.playlist_id, ch.source_id, ch.name, ch.normalized_name, ch."group", ch.logo,
                           ch.stream_url, ch.tvg_id, ch.catchup_days
                    FROM search_idx s
                    JOIN channels ch ON ch.id = s.item_id
                    WHERE search_idx MATCH ?1
                      AND s.content_type = 'channel'
-                     AND (?2 = 0 OR s.playlist_id = ?2)
+                     AND (?2 = 0 OR s.playlist_id = ?2){hidden}
                    ORDER BY bm25(search_idx, 10.0, 1.0), ch.id
-                   LIMIT ?3 OFFSET ?4"#,
-            )?;
+                   LIMIT ?3 OFFSET ?4"#
+            ))?;
             let it = st.query_map(params![m, playlist_id, limit, offset as i64], |r| {
                 Ok(ChannelRecord {
                     id: r.get(0)?,
@@ -71,9 +72,10 @@ impl Db {
         let Some(m) = build_match(query) else {
             return Ok(0);
         };
+        let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]);
         self.with_read(|c| {
             Ok(c.query_row(
-                "SELECT COUNT(*) FROM search_idx WHERE search_idx MATCH ?1 AND content_type = 'channel' AND (?2 = 0 OR playlist_id = ?2)",
+                &format!("SELECT COUNT(*) FROM search_idx s JOIN channels ch ON ch.id = s.item_id WHERE search_idx MATCH ?1 AND s.content_type = 'channel' AND (?2 = 0 OR s.playlist_id = ?2){hidden}"),
                 params![m, playlist_id],
                 |r| r.get(0),
             )?)
