@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ipc } from "../../lib/ipc";
-import { useApp } from "../../lib/store";
+import { fmtDuration, useApp } from "../../lib/store";
 import Hud from "./Hud";
 
 const CHROME_HIDE_MS = 2600;
@@ -16,8 +16,23 @@ export default function PlayerPane() {
   const config = useApp((s) => s.config)!;
   const ui = useApp((s) => s.ui);
   const setUi = useApp((s) => s.setUi);
-  const current = useApp((s) => s.currentChannel);
+  const currentChannel = useApp((s) => s.currentChannel);
+  const currentVod = useApp((s) => s.currentVod);
+  const currentEpisode = useApp((s) => s.currentEpisode);
+  const currentSeries = useApp((s) => s.currentSeries);
+  const telemetry = useApp((s) => s.telemetry);
   const playback = useApp((s) => s.playback);
+  const isVod = !!playback?.is_vod;
+  // "current" = anything playing; the label depends on what it is.
+  const current = currentChannel ?? currentVod ?? currentEpisode ?? (playback && playback.item.kind === "url" ? { id: -1, name: "URL probe" } : null);
+  const label = currentChannel
+    ? currentChannel.name
+    : currentVod
+      ? currentVod.title
+      : currentEpisode
+        ? `${currentSeries?.title ?? "Series"} · S${currentEpisode.season}E${currentEpisode.episode}${currentEpisode.title ? " · " + currentEpisode.title : ""}`
+        : "URL probe";
+  const sublabel = currentChannel?.group_title ?? currentVod?.category ?? null;
   const buffering = useApp((s) => s.buffering);
   const lastError = useApp((s) => s.lastError);
   const favoriteIds = useApp((s) => s.favoriteIds);
@@ -65,9 +80,9 @@ export default function PlayerPane() {
     return () => {
       if (hideTimer.current) window.clearTimeout(hideTimer.current);
     };
-  }, [poke, current?.id]);
+  }, [poke, currentChannel?.id, currentVod?.id, currentEpisode?.id]);
 
-  const isFav = current ? favoriteIds.has(current.id) : false;
+  const isFav = currentChannel ? favoriteIds.has(currentChannel.id) : false;
   const profile = playback?.profile ?? config.default_profile;
   const showChrome = chromeVisible || !current;
 
@@ -126,13 +141,13 @@ export default function PlayerPane() {
       {/* Top-left: channel identity */}
       {current && (
         <div className="absolute top-3 left-3 flex items-center gap-2 fade-chrome">
-          <span className="badge-live">LIVE</span>
+          {!isVod && <span className="badge-live">LIVE</span>}
           <span className="hud" style={{ fontFamily: "var(--font)", fontSize: 13, fontWeight: 600 }}>
-            {current.name}
+            {label}
           </span>
-          {current.group_title && (
+          {sublabel && (
             <span className="hud" style={{ color: "var(--text-dim)" }}>
-              {current.group_title}
+              {sublabel}
             </span>
           )}
         </div>
@@ -148,6 +163,21 @@ export default function PlayerPane() {
       {/* Bottom: transport */}
       {current && (
         <div className="absolute left-0 right-0 bottom-0 px-3 pb-2 pt-8 fade-chrome" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.65))" }}>
+          {isVod && telemetry && telemetry.duration_s > 0 && (
+            <div className="flex items-center gap-2 mb-1">
+              <span className="hud">{fmtDuration(telemetry.time_pos_s)}</span>
+              <input
+                type="range"
+                min={0}
+                max={Math.floor(telemetry.duration_s)}
+                value={Math.floor(telemetry.time_pos_s)}
+                onChange={(e) => void ipc.seek(Number(e.target.value)).catch(() => {})}
+                className="flex-1"
+                style={{ accentColor: "var(--accent)" }}
+              />
+              <span className="hud">{fmtDuration(telemetry.duration_s)}</span>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button className="btn ghost" style={{ color: "white" }} onClick={() => void togglePause()} title="Pause / resume (space)">
               {playback?.paused ? "▶" : "❚❚"}
@@ -173,21 +203,23 @@ export default function PlayerPane() {
 
             <div className="flex-1" />
 
-            <div className="seg" title="Playback profile (p): Low Latency = 3 s cache for sports · Stable = 20–60 s cache for bad Wi-Fi">
-              <button className={profile === "low_latency" ? "on" : ""} onClick={() => void setProfile("low_latency")}>
-                Low latency
+            {!isVod && (
+              <div className="seg" title="Playback profile (p): Low Latency = 3 s cache for sports · Stable = 20–60 s cache for bad Wi-Fi">
+                <button className={profile === "low_latency" ? "on" : ""} onClick={() => void setProfile("low_latency")}>
+                  Low latency
+                </button>
+                <button className={profile === "stable" ? "on" : ""} onClick={() => void setProfile("stable")}>
+                  Stable
+                </button>
+              </div>
+            )}
+            {currentChannel && (
+              <button className="btn ghost" style={{ color: isFav ? "var(--warn)" : "white" }} onClick={() => void toggleFavorite(currentChannel)} title="Favorite">
+                {isFav ? "★" : "☆"}
               </button>
-              <button className={profile === "stable" ? "on" : ""} onClick={() => void setProfile("stable")}>
-                Stable
-              </button>
-            </div>
-            <button
-              className="btn ghost"
-              style={{ color: isFav ? "var(--warn)" : "white" }}
-              onClick={() => current && void toggleFavorite(current)}
-              title="Favorite"
-            >
-              {isFav ? "★" : "☆"}
+            )}
+            <button className="btn ghost" style={{ color: "white" }} onClick={() => void ipc.openInExternalPlayer().catch(() => {})} title="Open in external player (mpv/VLC via the OS)">
+              ⧉
             </button>
             <button className="btn ghost" style={{ color: "white" }} onClick={() => setUi({ fullscreen: !ui.fullscreen })} title="Fullscreen (f)">
               {ui.fullscreen ? "⤡" : "⤢"}

@@ -11,16 +11,29 @@ import {
   type ChannelRecord,
   type ConfigPayload,
   type EngineTelemetryEvent,
+  type EpgStats,
+  type EpisodeRecord,
   type GroupSummary,
   type ImportDone,
-  type ImportProgressEvent,
+  type ImportProgress,
   type LicenseStateResponse,
+  type ParentalStatus,
   type PlaybackState,
+  type PlaylistMeta,
   type PlaylistSummary,
   type ProfileMode,
+  type VodKind,
+  type VodRecord,
 } from "./ipc";
 
-export type RailSelection = { kind: "all" } | { kind: "favorites" } | { kind: "recents" } | { kind: "group"; title: string };
+export type RailSelection =
+  | { kind: "all" }
+  | { kind: "favorites" }
+  | { kind: "recents" }
+  | { kind: "group"; title: string }
+  | { kind: "continue" };
+
+export type Tab = "live" | "movies" | "series";
 
 export interface Toast {
   id: number;
@@ -30,14 +43,29 @@ export interface Toast {
   sticky?: boolean;
 }
 
+export interface ResumePrompt {
+  kind: "vod" | "episode";
+  id: number;
+  title: string;
+  position_s: number;
+  duration_s: number | null;
+  vod?: VodRecord;
+  episode?: EpisodeRecord;
+  series?: VodRecord | null;
+}
+
 interface AppStore {
   ready: boolean;
   boot: Bootstrap | null;
   config: ConfigPayload | null;
   license: LicenseStateResponse | null;
+  parental: ParentalStatus | null;
   playlists: PlaylistSummary[];
   activePlaylistId: number | null;
+  playlistMeta: PlaylistMeta | null;
   groups: GroupSummary[];
+  epgStats: EpgStats | null;
+  tab: Tab;
   rail: RailSelection;
   favoriteIds: Set<number>;
   favorites: ChannelRecord[];
@@ -45,45 +73,66 @@ interface AppStore {
   search: string;
   /** Bumps whenever the list contents may have changed (import done, favorites…). */
   listVersion: number;
+  /** Bumps when EPG data changed. */
+  epgVersion: number;
+  guideMode: "list" | "guide";
 
   playback: PlaybackState | null;
   currentChannel: ChannelRecord | null;
+  currentVod: VodRecord | null;
+  currentEpisode: EpisodeRecord | null;
+  currentSeries: VodRecord | null;
   telemetry: EngineTelemetryEvent | null;
   buffering: boolean;
   lastZapMs: number | null;
   lastError: string | null;
   engineLog: { level: string; text: string; at: number }[];
 
-  imports: Record<number, ImportProgressEvent>;
+  imports: Record<number, ImportProgress>;
   toasts: Toast[];
 
   ui: {
     fullscreen: boolean;
     settingsOpen: boolean;
+    settingsTab: "playback" | "interface" | "playlists" | "guide" | "parental" | "license" | "about";
     addPlaylistOpen: boolean;
     diagnosticsOpen: boolean;
     selectedIndex: number;
+    seriesOpen: number | null;
+    resumePrompt: ResumePrompt | null;
+    unlockOpen: boolean;
+    epgEditChannel: ChannelRecord | null;
+    vodSort: "added" | "title" | "year" | "rating";
+    vodCategory: string | null;
   };
 
   init: () => Promise<void>;
   reloadPlaylists: () => Promise<void>;
   selectPlaylist: (id: number | null) => Promise<void>;
+  reloadPlaylistMeta: () => Promise<void>;
+  reloadEpgStats: () => Promise<void>;
+  setTab: (t: Tab) => void;
   selectRail: (sel: RailSelection) => void;
   setSearch: (q: string) => void;
   refreshSidebarLists: () => Promise<void>;
   toggleFavorite: (ch: ChannelRecord) => Promise<void>;
 
   play: (ch: ChannelRecord) => Promise<void>;
+  playVod: (v: VodRecord, fromStart?: boolean) => Promise<void>;
+  playEpisode: (e: EpisodeRecord, series: VodRecord | null, fromStart?: boolean) => Promise<void>;
+  applyPlaybackState: (pb: PlaybackState) => Promise<void>;
   stop: () => Promise<void>;
   setProfile: (p: ProfileMode) => Promise<void>;
   toggleProfile: () => Promise<void>;
   togglePause: () => Promise<void>;
   toggleMute: () => Promise<void>;
   setVolume: (v: number) => Promise<void>;
+  seekBy: (delta: number) => Promise<void>;
 
   saveConfig: (patch: Partial<ConfigPayload>) => Promise<void>;
   acceptLegal: () => Promise<void>;
   refreshLicense: () => Promise<void>;
+  refreshParental: () => Promise<void>;
 
   setUi: (patch: Partial<AppStore["ui"]>) => void;
   pushToast: (t: Omit<Toast, "id">) => void;
@@ -97,18 +146,27 @@ export const useApp = create<AppStore>((set, get) => ({
   boot: null,
   config: null,
   license: null,
+  parental: null,
   playlists: [],
   activePlaylistId: null,
+  playlistMeta: null,
   groups: [],
+  epgStats: null,
+  tab: "live",
   rail: { kind: "all" },
   favoriteIds: new Set(),
   favorites: [],
   recents: [],
   search: "",
   listVersion: 0,
+  epgVersion: 0,
+  guideMode: "list",
 
   playback: null,
   currentChannel: null,
+  currentVod: null,
+  currentEpisode: null,
+  currentSeries: null,
   telemetry: null,
   buffering: false,
   lastZapMs: null,
@@ -118,11 +176,24 @@ export const useApp = create<AppStore>((set, get) => ({
   imports: {},
   toasts: [],
 
-  ui: { fullscreen: false, settingsOpen: false, addPlaylistOpen: false, diagnosticsOpen: false, selectedIndex: -1 },
+  ui: {
+    fullscreen: false,
+    settingsOpen: false,
+    settingsTab: "playback",
+    addPlaylistOpen: false,
+    diagnosticsOpen: false,
+    selectedIndex: -1,
+    seriesOpen: null,
+    resumePrompt: null,
+    unlockOpen: false,
+    epgEditChannel: null,
+    vodSort: "added",
+    vodCategory: null,
+  },
 
   init: async () => {
     const boot = await ipc.getBootstrap();
-    set({ boot, config: boot.config, license: boot.license, playlists: boot.playlists });
+    set({ boot, config: boot.config, license: boot.license, playlists: boot.playlists, parental: boot.parental });
     const first = boot.playlists[0]?.id ?? null;
     await get().selectPlaylist(first);
     await get().refreshSidebarLists();
@@ -142,10 +213,11 @@ export const useApp = create<AppStore>((set, get) => ({
           break;
         case "end_file":
           if (ev.error) {
-            set({ lastError: ev.error });
+            set({ lastError: ev.error, buffering: false });
             get().pushToast({ level: "error", title: "Stream ended with an error", body: ev.error });
           } else if (ev.reason === "eof") {
-            get().pushToast({ level: "info", title: "Stream ended", body: "The provider closed the stream." });
+            set({ buffering: false });
+            if (!get().playback?.is_vod) get().pushToast({ level: "info", title: "Stream ended", body: "The provider closed the stream." });
           }
           break;
         case "log":
@@ -156,6 +228,10 @@ export const useApp = create<AppStore>((set, get) => ({
       }
     });
 
+    await events.onPlaybackState((pb) => {
+      void get().applyPlaybackState(pb);
+    });
+
     await events.onImportProgress((ev) => {
       set((s) => ({ imports: { ...s.imports, [ev.playlist_id]: ev } }));
     });
@@ -164,28 +240,50 @@ export const useApp = create<AppStore>((set, get) => ({
       set((s) => {
         const imports = { ...s.imports };
         delete imports[ev.playlist_id];
-        return { imports, listVersion: s.listVersion + 1 };
+        return { imports, listVersion: s.listVersion + 1, epgVersion: ev.phase === "epg" ? s.epgVersion + 1 : s.epgVersion };
       });
       await get().reloadPlaylists();
       await get().refreshLicense();
-      if (ev.ok && ev.stats) {
-        const st = ev.stats;
-        get().pushToast({
-          level: "info",
-          title: `Imported ${st.inserted + st.updated} channels in ${st.groups} groups`,
-          body: `${(st.elapsed_ms / 1000).toFixed(1)} s${st.warnings.length ? " · " + st.warnings.join(" · ") : ""}`,
-        });
-        if (get().activePlaylistId === null || get().activePlaylistId === ev.playlist_id) {
-          await get().selectPlaylist(ev.playlist_id);
+      const st = ev.stats;
+      if (ev.ok && st) {
+        if (ev.phase === "live") {
+          get().pushToast({
+            level: "info",
+            title: `Imported ${(st.inserted + st.updated).toLocaleString()} channels in ${st.groups} groups`,
+            body: `${(st.elapsed_ms / 1000).toFixed(1)} s${st.warnings.length ? " · " + st.warnings.join(" · ") : ""}`,
+          });
+          if (get().activePlaylistId === null || get().activePlaylistId === ev.playlist_id) await get().selectPlaylist(ev.playlist_id);
+        } else if (ev.phase === "epg") {
+          get().pushToast({
+            level: "info",
+            title: `Guide: ${st.inserted.toLocaleString()} programmes for ${st.groups} channels`,
+            body: st.warnings.slice(0, 3).join(" · ") || undefined,
+          });
+          if (get().activePlaylistId === ev.playlist_id) {
+            await get().reloadEpgStats();
+            if ((get().epgStats?.programmes ?? 0) > 0) set({ guideMode: "guide" });
+          }
+        } else if (ev.phase === "vod") {
+          get().pushToast({ level: "info", title: `Library: ${st.inserted.toLocaleString()} new titles`, body: st.warnings.slice(0, 2).join(" · ") || undefined });
         }
-      } else {
+      } else if (!ev.ok) {
         get().pushToast({
-          level: "error",
-          title: ev.error_kind === "html" ? "That URL returned a web page, not a playlist" : "Import failed",
+          level: ev.phase === "epg" ? "warn" : "error",
+          title:
+            ev.error_kind === "html"
+              ? `That URL returned a web page, not a ${ev.phase === "epg" ? "guide" : "playlist"}`
+              : ev.phase === "account"
+                ? "Provider login failed"
+                : ev.phase === "epg"
+                  ? "Guide import failed"
+                  : ev.phase === "vod"
+                    ? "Library import failed"
+                    : "Import failed",
           body: [ev.error, ev.preview ? `First bytes: ${ev.preview.slice(0, 160)}` : null].filter(Boolean).join("\n"),
-          sticky: true,
+          sticky: ev.phase !== "epg",
         });
       }
+      await get().reloadPlaylistMeta();
     });
 
     set({ ready: true });
@@ -213,11 +311,24 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 
   selectPlaylist: async (id) => {
-    set({ activePlaylistId: id, rail: { kind: "all" }, search: "", ui: { ...get().ui, selectedIndex: -1 } });
+    set((s) => ({ activePlaylistId: id, rail: { kind: "all" }, search: "", ui: { ...s.ui, selectedIndex: -1, vodCategory: null } }));
     set({ groups: id != null ? await ipc.listGroups(id) : [] });
-    set((s) => ({ listVersion: s.listVersion + 1 }));
+    await get().reloadPlaylistMeta();
+    await get().reloadEpgStats();
+    set((s) => ({ listVersion: s.listVersion + 1, guideMode: (s.epgStats?.programmes ?? 0) > 0 ? "guide" : "list" }));
   },
 
+  reloadPlaylistMeta: async () => {
+    const id = get().activePlaylistId;
+    set({ playlistMeta: id != null ? await ipc.playlistMeta(id).catch(() => null) : null });
+  },
+
+  reloadEpgStats: async () => {
+    const id = get().activePlaylistId;
+    set({ epgStats: id != null ? await ipc.epgStats(id).catch(() => null) : null });
+  },
+
+  setTab: (t) => set((s) => ({ tab: t, search: "", rail: t === "live" ? s.rail : { kind: "all" }, ui: { ...s.ui, selectedIndex: -1 } })),
   selectRail: (sel) => set((s) => ({ rail: sel, search: "", ui: { ...s.ui, selectedIndex: -1 } })),
   setSearch: (q) => set((s) => ({ search: q, ui: { ...s.ui, selectedIndex: -1 } })),
 
@@ -234,21 +345,83 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 
   play: async (ch) => {
-    set({ currentChannel: ch, lastError: null, lastZapMs: null, buffering: true });
+    set({ currentChannel: ch, currentVod: null, currentEpisode: null, currentSeries: null, lastError: null, lastZapMs: null, buffering: true });
     try {
       const playback = await ipc.playChannel(ch.id);
       set({ playback });
-      const recents = await ipc.getRecents();
-      set({ recents });
+      set({ recents: await ipc.getRecents() });
     } catch (e) {
       set({ buffering: false, lastError: String(e) });
       get().pushToast({ level: "error", title: "Could not start playback", body: String(e) });
     }
   },
 
+  playVod: async (v, fromStart = false) => {
+    if (!fromStart) {
+      const p = await ipc.getProgress("vod", v.id).catch(() => null);
+      if (p && !p.finished && p.position_s > 30) {
+        get().setUi({ resumePrompt: { kind: "vod", id: v.id, title: v.title, position_s: p.position_s, duration_s: p.duration_s ?? v.duration_s, vod: v } });
+        return;
+      }
+    }
+    set({ currentVod: v, currentChannel: null, currentEpisode: null, currentSeries: null, lastError: null, lastZapMs: null, buffering: true });
+    try {
+      set({ playback: await ipc.playVod(v.id, fromStart) });
+    } catch (e) {
+      set({ buffering: false, lastError: String(e) });
+      get().pushToast({ level: "error", title: "Could not start playback", body: String(e) });
+    }
+  },
+
+  playEpisode: async (e, series, fromStart = false) => {
+    if (!fromStart) {
+      const p = await ipc.getProgress("episode", e.id).catch(() => null);
+      if (p && !p.finished && p.position_s > 30) {
+        get().setUi({
+          resumePrompt: {
+            kind: "episode",
+            id: e.id,
+            title: `${series?.title ?? "Series"} · S${e.season}E${e.episode}${e.title ? " · " + e.title : ""}`,
+            position_s: p.position_s,
+            duration_s: p.duration_s ?? e.duration,
+            episode: e,
+            series,
+          },
+        });
+        return;
+      }
+    }
+    set({ currentEpisode: e, currentSeries: series, currentVod: null, currentChannel: null, lastError: null, lastZapMs: null, buffering: true });
+    try {
+      set({ playback: await ipc.playEpisode(e.id, fromStart) });
+    } catch (err) {
+      set({ buffering: false, lastError: String(err) });
+      get().pushToast({ level: "error", title: "Could not start playback", body: String(err) });
+    }
+  },
+
+  /** Backend changed playback (auto-next). Resolve what is playing for the UI. */
+  applyPlaybackState: async (pb) => {
+    set({ playback: pb });
+    const item = pb.item;
+    if (item.kind === "episode") {
+      const cur = get().currentEpisode;
+      if (cur?.id !== item.id) {
+        try {
+          const detail = await ipc.seriesDetail(item.series_id, false);
+          const ep = detail.episodes.find((x) => x.id === item.id) ?? null;
+          set({ currentEpisode: ep, currentSeries: detail.series, currentVod: null, currentChannel: null, lastZapMs: null });
+          if (ep) get().pushToast({ level: "info", title: `Up next: S${ep.season}E${ep.episode}${ep.title ? " · " + ep.title : ""}` });
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  },
+
   stop: async () => {
     const playback = await ipc.stopPlayback();
-    set({ playback, currentChannel: null, telemetry: null, buffering: false });
+    set({ playback, currentChannel: null, currentVod: null, currentEpisode: null, currentSeries: null, telemetry: null, buffering: false });
   },
 
   setProfile: async (p) => {
@@ -272,17 +445,25 @@ export const useApp = create<AppStore>((set, get) => ({
   setVolume: async (v) => {
     set({ playback: await ipc.setVolume(Math.max(0, Math.min(130, Math.round(v)))) });
   },
+  seekBy: async (delta) => {
+    const t = get().telemetry;
+    if (!get().playback?.is_vod || !t) return;
+    await ipc.seek(Math.max(0, t.time_pos_s + delta)).catch(() => {});
+  },
 
   saveConfig: async (patch) => {
     const cur = get().config;
     if (!cur) return;
-    const saved = await ipc.setConfig({ ...cur, ...patch });
-    set({ config: saved });
+    set({ config: await ipc.setConfig({ ...cur, ...patch }) });
   },
-  acceptLegal: async () => {
-    set({ config: await ipc.acceptLegal() });
-  },
+  acceptLegal: async () => set({ config: await ipc.acceptLegal() }),
   refreshLicense: async () => set({ license: await ipc.getLicenseState() }),
+  refreshParental: async () => {
+    const parental = await ipc.parentalStatus();
+    set((s) => ({ parental, listVersion: s.listVersion + 1 }));
+    const id = get().activePlaylistId;
+    if (id != null) set({ groups: await ipc.listGroups(id) });
+  },
 
   setUi: (patch) => set((s) => ({ ui: { ...s.ui, ...patch } })),
   pushToast: (t) => {
@@ -292,3 +473,19 @@ export const useApp = create<AppStore>((set, get) => ({
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
+
+export function fmtTime(unix: number): string {
+  return new Date(unix * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export function fmtDuration(secs: number): string {
+  const s = Math.max(0, Math.round(secs));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+export function vodKindOfTab(tab: Tab): VodKind | null {
+  return tab === "movies" ? "movie" : tab === "series" ? "series" : null;
+}

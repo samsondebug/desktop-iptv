@@ -308,3 +308,210 @@ body,
   color: #05111c;
   font-weight: 600;
 }
+
+/* ---------- EPG grid ---------- */
+.epg-row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+.epg-row:hover {
+  background: var(--bg-elev-2);
+}
+.epg-row.selected {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: rgba(88, 196, 255, 0.08);
+}
+.epg-row.active .name {
+  color: var(--accent);
+}
+.epg-ch {
+  display: grid;
+  grid-template-columns: 34px 36px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.epg-ch .idx {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  text-align: right;
+}
+.epg-ch .logo {
+  width: 36px;
+  height: 26px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--bg-elev-2);
+}
+.epg-ch .name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+}
+.epg-ch .grp {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.epg-lane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  overflow: hidden;
+}
+.epg-prog {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  border-radius: 6px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+}
+.epg-prog:hover {
+  border-color: var(--accent);
+}
+.epg-prog.live {
+  background: rgba(88, 196, 255, 0.14);
+  border-color: rgba(88, 196, 255, 0.45);
+}
+.epg-prog-title {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.epg-prog-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.epg-prog.narrow .epg-prog-time {
+  display: none;
+}
+.epg-empty {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+.epg-nowline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--live);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* ---------- VOD grid ---------- */
+.poster {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: default;
+  padding: 6px;
+  border-radius: 8px;
+}
+.poster:hover {
+  background: var(--bg-elev-2);
+}
+.poster.selected {
+  outline: 2px solid var(--accent);
+}
+.poster .art {
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  border-radius: 6px;
+  background: var(--bg-elev-2);
+  object-fit: cover;
+  display: block;
+  position: relative;
+}
+.poster .art-wrap {
+  position: relative;
+}
+.poster .prog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+.poster .prog > div {
+  height: 100%;
+  background: var(--accent);
+}
+.poster .title {
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.poster .meta {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+.episode-row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.episode-row:hover {
+  background: var(--bg-elev-2);
+}
+.progress-bar {
+  height: 4px;
+  background: var(--bg-elev-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar > div {
+  height: 100%;
+  background: var(--accent);
+}
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.tabs > button {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  border-bottom: 2px solid transparent;
+}
+.tabs > button.on {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}

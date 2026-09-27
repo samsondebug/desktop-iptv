@@ -1,11 +1,12 @@
 /**
- * Typed IPC — the TypeScript mirror of `crates/app-core/src/ipc.rs` (CLAUDE.md §4).
+ * Typed IPC — the TypeScript mirror of `crates/app-core/src/ipc.rs` (CLAUDE.md §4) plus the
+ * command-layer shapes in `apps/desktop/src-tauri/src/commands/*.rs`.
  * Do not invent parallel shapes here; change the Rust struct first, then this file.
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-// ---------- contracts ----------
+// ---------- contracts (app-core) ----------
 
 export type ProfileMode = "low_latency" | "stable";
 export type HwDecoding =
@@ -81,6 +82,9 @@ export interface EngineTelemetryEvent {
   cache_duration_secs: number;
   is_underrun: boolean;
   zap_ms: number | null;
+  time_pos_s: number;
+  duration_s: number;
+  paused: boolean;
 }
 
 export interface ListChannelsRequest {
@@ -88,14 +92,6 @@ export interface ListChannelsRequest {
   group_title: string | null;
   limit: number;
   offset: number;
-}
-
-export interface ImportProgressEvent {
-  playlist_id: number;
-  stage: "fetching" | "parsing" | "indexing" | "done" | "error";
-  channels: number;
-  bytes: number;
-  message: string | null;
 }
 
 export interface GroupSummary {
@@ -110,6 +106,31 @@ export interface PlaylistSummary {
   base_url_redacted: string;
   channel_count: number;
   created: string;
+}
+
+export interface PlaylistMeta {
+  id: number;
+  type: string;
+  epg_offset_min: number;
+  stream_format: "ts" | "m3u8";
+  account_json: string | null;
+  last_synced: string | null;
+  last_error: string | null;
+}
+
+export interface XtreamAccount {
+  username: string;
+  status: string | null;
+  exp_date: number | null;
+  is_trial: boolean;
+  active_cons: number | null;
+  max_connections: number | null;
+  created_at: number | null;
+  allowed_output_formats: string[];
+  server_url: string | null;
+  timezone: string | null;
+  server_time: number | null;
+  auth: boolean;
 }
 
 export interface SyncStats {
@@ -128,7 +149,34 @@ export interface RenderStateSignal {
   active_channel_id: number | null;
 }
 
-// ---------- command-layer shapes (apps/desktop/src-tauri/src/commands.rs) ----------
+// ---------- command-layer shapes ----------
+
+export type SyncPhase = "account" | "live" | "epg" | "vod";
+
+export interface ImportProgress {
+  playlist_id: number;
+  phase: SyncPhase;
+  stage: "fetching" | "parsing" | "indexing" | "done" | "error";
+  channels: number;
+  bytes: number;
+  message: string | null;
+}
+
+export interface ImportDone {
+  playlist_id: number;
+  phase: SyncPhase;
+  ok: boolean;
+  stats: SyncStats | null;
+  error: string | null;
+  error_kind: string | null;
+  preview: string | null;
+}
+
+export interface ParentalStatus {
+  enabled: boolean;
+  unlocked: boolean;
+  keywords: string[];
+}
 
 export interface Bootstrap {
   version: string;
@@ -141,22 +189,24 @@ export interface Bootstrap {
   engine_description: string;
   last_channel_id: number | null;
   platform: string;
+  parental: ParentalStatus;
+  data_dir: string;
 }
 
 export type AddPlaylistSource =
-  | { kind: "m3u_url"; url: string; user_agent: string | null }
-  | { kind: "m3u_file"; path: string };
+  | { kind: "m3u_url"; url: string; user_agent: string | null; epg_url: string | null }
+  | { kind: "m3u_file"; path: string; epg_url: string | null }
+  | { kind: "xtream"; base_url: string; username: string; password: string; stream_format: "ts" | "m3u8" | null; user_agent: string | null };
 
-export interface ImportDone {
-  playlist_id: number;
-  ok: boolean;
-  stats: SyncStats | null;
-  error: string | null;
-  error_kind: string | null;
-  preview: string | null;
-}
+export type PlaybackItem =
+  | { kind: "none" }
+  | { kind: "channel"; id: number }
+  | { kind: "vod"; id: number }
+  | { kind: "episode"; id: number; series_id: number }
+  | { kind: "url" };
 
 export interface PlaybackState {
+  item: PlaybackItem;
   channel_id: number | null;
   stream_url_redacted: string | null;
   profile: ProfileMode;
@@ -164,6 +214,7 @@ export interface PlaybackState {
   muted: boolean;
   paused: boolean;
   engine_kind: "mpv" | "stub";
+  is_vod: boolean;
 }
 
 export type EngineEvent =
@@ -181,23 +232,141 @@ export function telemetryOf(ev: EngineEvent): EngineTelemetryEvent | null {
   return rest as EngineTelemetryEvent;
 }
 
+// EPG
+export interface Programme {
+  channel_tvg_id: string;
+  start: number; // unix seconds, offset-adjusted
+  stop: number;
+  title: string;
+  desc: string | null;
+}
+export interface EpgGridRequest {
+  playlist_id: number;
+  channel_ids: number[];
+  from: number;
+  to: number;
+}
+export interface EpgGridRow {
+  channel_id: number;
+  tvg_id: string | null;
+  programmes: Programme[];
+}
+export interface NowNext {
+  channel_id: number;
+  tvg_id: string | null;
+  now: Programme | null;
+  next: Programme | null;
+}
+export interface EpgStats {
+  programmes: number;
+  channels_with_epg: number;
+  min_start: number | null;
+  max_stop: number | null;
+  offset_min: number;
+}
+export interface EpgSource {
+  id: number;
+  playlist_id: number;
+  url_redacted: string;
+  enabled: boolean;
+  last_synced: string | null;
+  last_error: string | null;
+  programme_count: number;
+}
+
+// VOD
+export type VodKind = "movie" | "series";
+export interface VodRecord {
+  id: number;
+  playlist_id: number;
+  kind: VodKind;
+  source_id: string;
+  title: string;
+  poster: string | null;
+  backdrop: string | null;
+  year: number | null;
+  tmdb_id: number | null;
+  category: string | null;
+  description: string | null;
+  rating: number | null;
+  genre: string | null;
+  duration_s: number | null;
+  stream_url: string | null;
+  container_ext: string | null;
+  added: number | null;
+  episodes_synced: string | null;
+}
+export interface EpisodeRecord {
+  id: number;
+  series_id: number;
+  source_id: string | null;
+  season: number;
+  episode: number;
+  title: string | null;
+  stream_url: string;
+  duration: number | null;
+  poster: string | null;
+  container_ext: string | null;
+}
+export interface VodGroup {
+  category: string;
+  count: number;
+}
+export interface ProgressRecord {
+  item_type: "vod" | "episode" | "channel";
+  item_id: number;
+  position_s: number;
+  duration_s: number | null;
+  finished: boolean;
+  updated: string;
+}
+export interface SeriesDetail {
+  series: VodRecord;
+  episodes: EpisodeRecord[];
+  progress: ProgressRecord[];
+  fetched_now: boolean;
+}
+export interface ContinueItem {
+  progress: ProgressRecord;
+  vod: VodRecord | null;
+  episode: EpisodeRecord | null;
+  series: VodRecord | null;
+}
+export interface ListVodRequest {
+  playlist_id: number;
+  kind: VodKind;
+  category: string | null;
+  sort: "added" | "title" | "year" | "rating" | null;
+  limit: number;
+  offset: number;
+}
+
 // ---------- commands ----------
 
 export const ipc = {
+  // bootstrap / config / license / theme
   getBootstrap: () => invoke<Bootstrap>("get_bootstrap"),
   getConfig: () => invoke<ConfigPayload>("get_config"),
   setConfig: (config: ConfigPayload) => invoke<ConfigPayload>("set_config", { config }),
   acceptLegal: () => invoke<ConfigPayload>("accept_legal"),
+  getLicenseState: () => invoke<LicenseStateResponse>("get_license_state"),
+  activateLicense: (cmd: ValidateLicenseCommand) => invoke<LicenseStateResponse>("activate_license", { cmd }),
+  getMachineGuid: () => invoke<string>("get_machine_guid"),
+  getThemeTokens: () => invoke<string | null>("get_theme_tokens"),
+  setThemeTokens: (json: string | null) => invoke<void>("set_theme_tokens", { json }),
 
+  // playlists / catalog
   addPlaylist: (name: string, source: AddPlaylistSource) => invoke<number>("add_playlist", { name, source }),
-  refreshPlaylist: (playlistId: number) => invoke<void>("refresh_playlist", { playlistId }),
+  refreshPlaylist: (playlistId: number) => invoke<boolean>("refresh_playlist", { playlistId }),
   deletePlaylist: (playlistId: number) => invoke<void>("delete_playlist", { playlistId }),
+  renamePlaylist: (playlistId: number, name: string) => invoke<void>("rename_playlist", { playlistId, name }),
   listPlaylists: () => invoke<PlaylistSummary[]>("list_playlists"),
-
+  playlistMeta: (playlistId: number) => invoke<PlaylistMeta>("playlist_meta", { playlistId }),
+  setStreamFormat: (playlistId: number, format: "ts" | "m3u8") => invoke<void>("set_stream_format", { playlistId, format }),
+  isSyncing: (playlistId: number) => invoke<boolean>("is_syncing", { playlistId }),
   listGroups: (playlistId: number) => invoke<GroupSummary[]>("list_groups", { playlistId }),
   listChannels: (req: ListChannelsRequest) => invoke<ChannelRecord[]>("list_channels", { req }),
-  countChannels: (playlistId: number, groupTitle: string | null) =>
-    invoke<number>("count_channels", { playlistId, groupTitle }),
+  countChannels: (playlistId: number, groupTitle: string | null) => invoke<number>("count_channels", { playlistId, groupTitle }),
   searchChannels: (req: FtsQueryRequest) => invoke<ChannelRecord[]>("search_channels", { req }),
   getChannel: (channelId: number) => invoke<ChannelRecord>("get_channel", { channelId }),
   getFavorites: () => invoke<ChannelRecord[]>("get_favorites"),
@@ -205,34 +374,84 @@ export const ipc = {
   setFavorite: (channelId: number, on: boolean) => invoke<void>("set_favorite", { channelId, on }),
   getRecents: () => invoke<ChannelRecord[]>("get_recents"),
 
+  // playback
+  getPlaybackState: () => invoke<PlaybackState>("get_playback_state"),
   playChannel: (channelId: number) => invoke<PlaybackState>("play_channel", { channelId }),
+  playVod: (vodId: number, fromStart: boolean) => invoke<PlaybackState>("play_vod", { vodId, fromStart }),
+  playEpisode: (episodeId: number, fromStart: boolean) => invoke<PlaybackState>("play_episode", { episodeId, fromStart }),
   loadStream: (cmd: LoadStreamCommand) => invoke<PlaybackState>("load_stream", { cmd }),
   stopPlayback: () => invoke<PlaybackState>("stop_playback"),
   setProfile: (profile: ProfileMode) => invoke<PlaybackState>("set_profile", { profile }),
   setPause: (paused: boolean) => invoke<PlaybackState>("set_pause", { paused }),
   setMute: (muted: boolean) => invoke<PlaybackState>("set_mute", { muted }),
   setVolume: (volume: number) => invoke<PlaybackState>("set_volume", { volume }),
+  seek: (secs: number) => invoke<void>("seek", { secs }),
   setVideoRect: (x: number, y: number, w: number, h: number, winW: number, winH: number) =>
     invoke<void>("set_video_rect", { x, y, w, h, winW, winH }),
   getTelemetry: () => invoke<EngineTelemetryEvent>("get_telemetry"),
   engineGetProperty: (name: string) => invoke<string | null>("engine_get_property", { name }),
   engineSetProperty: (name: string, value: string) => invoke<void>("engine_set_property", { name, value }),
   engineCommand: (args: string[]) => invoke<void>("engine_command", { args }),
+  engineTracks: () => invoke<MpvTrack[]>("engine_tracks"),
+  engineSelectTrack: (kind: "audio" | "sub" | "video", id: string) => invoke<void>("engine_select_track", { kind, id }),
+  openInExternalPlayer: () => invoke<void>("open_in_external_player"),
 
-  getLicenseState: () => invoke<LicenseStateResponse>("get_license_state"),
-  activateLicense: (cmd: ValidateLicenseCommand) => invoke<LicenseStateResponse>("activate_license", { cmd }),
-  getMachineGuid: () => invoke<string>("get_machine_guid"),
+  // epg
+  epgGrid: (req: EpgGridRequest) => invoke<EpgGridRow[]>("epg_grid", { req }),
+  epgNowNext: (channelId: number) => invoke<NowNext>("epg_now_next", { channelId }),
+  epgStats: (playlistId: number) => invoke<EpgStats>("epg_stats", { playlistId }),
+  setEpgOffset: (playlistId: number, minutes: number) => invoke<void>("set_epg_offset", { playlistId, minutes }),
+  setEpgOverride: (channelId: number, tvgId: string | null) => invoke<void>("set_epg_override", { channelId, tvgId }),
+  getEpgOverride: (channelId: number) => invoke<string | null>("get_epg_override", { channelId }),
+  epgSearchIds: (playlistId: number, q: string) => invoke<string[]>("epg_search_ids", { playlistId, q }),
+  listEpgSources: (playlistId: number) => invoke<EpgSource[]>("list_epg_sources", { playlistId }),
+  addEpgSource: (playlistId: number, url: string) => invoke<number>("add_epg_source", { playlistId, url }),
+  deleteEpgSource: (id: number) => invoke<void>("delete_epg_source", { id }),
+  refreshEpg: (playlistId: number) => invoke<boolean>("refresh_epg", { playlistId }),
+
+  // vod
+  listVod: (req: ListVodRequest) => invoke<VodRecord[]>("list_vod", { req }),
+  countVod: (playlistId: number, kind: VodKind, category: string | null) => invoke<number>("count_vod", { playlistId, kind, category }),
+  vodGroups: (playlistId: number, kind: VodKind) => invoke<VodGroup[]>("vod_groups", { playlistId, kind }),
+  searchVod: (playlistId: number, query: string, kind: VodKind | null, limit: number) =>
+    invoke<VodRecord[]>("search_vod", { playlistId, query, kind, limit }),
+  getVod: (vodId: number) => invoke<VodRecord>("get_vod", { vodId }),
+  seriesDetail: (seriesId: number, force: boolean) => invoke<SeriesDetail>("series_detail", { seriesId, force }),
+  continueWatching: () => invoke<ContinueItem[]>("continue_watching"),
+  getProgress: (itemType: string, itemId: number) => invoke<ProgressRecord | null>("get_progress", { itemType, itemId }),
+  clearProgress: (itemType: string, itemId: number) => invoke<void>("clear_progress", { itemType, itemId }),
+  refreshVod: (playlistId: number) => invoke<boolean>("refresh_vod", { playlistId }),
+
+  // parental
+  parentalStatus: () => invoke<ParentalStatus>("parental_status"),
+  setParentalPin: (pin: string, currentPin: string | null) => invoke<ParentalStatus>("set_parental_pin", { pin, currentPin }),
+  clearParentalPin: (currentPin: string) => invoke<ParentalStatus>("clear_parental_pin", { currentPin }),
+  unlockParental: (pin: string) => invoke<ParentalStatus>("unlock_parental", { pin }),
+  lockParental: () => invoke<ParentalStatus>("lock_parental"),
+  setParentalKeywords: (keywords: string[], pin: string | null) => invoke<ParentalStatus>("set_parental_keywords", { keywords, pin }),
 };
+
+export interface MpvTrack {
+  id: number;
+  type: "audio" | "sub" | "video";
+  selected: boolean;
+  title?: string;
+  lang?: string;
+  codec?: string;
+  default?: boolean;
+  forced?: boolean;
+}
 
 // ---------- events ----------
 
 export const events = {
-  onEngine: (cb: (ev: EngineEvent) => void): Promise<UnlistenFn> =>
-    listen<EngineEvent>("engine_event", (e) => cb(e.payload)),
-  onImportProgress: (cb: (ev: ImportProgressEvent) => void): Promise<UnlistenFn> =>
-    listen<ImportProgressEvent>("import_progress", (e) => cb(e.payload)),
-  onImportDone: (cb: (ev: ImportDone) => void): Promise<UnlistenFn> =>
-    listen<ImportDone>("import_done", (e) => cb(e.payload)),
+  onEngine: (cb: (ev: EngineEvent) => void): Promise<UnlistenFn> => listen<EngineEvent>("engine_event", (e) => cb(e.payload)),
+  onImportProgress: (cb: (ev: ImportProgress) => void): Promise<UnlistenFn> =>
+    listen<ImportProgress>("import_progress", (e) => cb(e.payload)),
+  onImportDone: (cb: (ev: ImportDone) => void): Promise<UnlistenFn> => listen<ImportDone>("import_done", (e) => cb(e.payload)),
+  onPlaybackState: (cb: (ev: PlaybackState) => void): Promise<UnlistenFn> =>
+    listen<PlaybackState>("playback_state", (e) => cb(e.payload)),
 };
 
-export const isTauri = () => typeof (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== "undefined";
+export const isTauri = () =>
+  typeof (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== "undefined";

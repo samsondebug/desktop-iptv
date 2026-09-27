@@ -1,7 +1,8 @@
 /**
  * Global keyboard shortcuts (CLAUDE.md §8):
- *   /  search     j/k or ↑/↓ channels     Enter play     f fullscreen
- *   m  mute       space pause             p profile      Esc close/exit
+ *   /  search     j/k or ↑/↓ rows      Enter play      f fullscreen     m mute
+ *   space pause   p profile            ←/→ EPG window (live) or seek ±10 s (VOD)
+ *   Shift+S settings   Shift+D diagnostics   1/2/3 tabs   Esc close/exit
  * List navigation is delegated to the mounted list via DOM events so the list owns its data.
  */
 import { useEffect } from "react";
@@ -9,13 +10,14 @@ import { useApp } from "./store";
 
 export const LIST_MOVE = "diptv:list-move";
 export const LIST_ENTER = "diptv:list-enter";
+export const EPG_SHIFT = "diptv:epg-shift";
 
 export function useKeyboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useApp.getState();
       const target = e.target as HTMLElement | null;
-      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
 
       if (e.key === "Escape") {
         if (typing) {
@@ -23,6 +25,10 @@ export function useKeyboard() {
           if ((target as HTMLInputElement).id === "channel-search") s.setSearch("");
           return;
         }
+        if (s.ui.resumePrompt) return s.setUi({ resumePrompt: null });
+        if (s.ui.unlockOpen) return s.setUi({ unlockOpen: false });
+        if (s.ui.epgEditChannel) return s.setUi({ epgEditChannel: null });
+        if (s.ui.seriesOpen != null) return s.setUi({ seriesOpen: null });
         if (s.ui.fullscreen) return s.setUi({ fullscreen: false });
         if (s.ui.settingsOpen || s.ui.addPlaylistOpen || s.ui.diagnosticsOpen) {
           return s.setUi({ settingsOpen: false, addPlaylistOpen: false, diagnosticsOpen: false });
@@ -30,7 +36,6 @@ export function useKeyboard() {
         return;
       }
       if (typing) {
-        // Let ↑/↓/Enter work from the search box so results are navigable without leaving it.
         if ((target as HTMLInputElement).id === "channel-search") {
           if (e.key === "ArrowDown") {
             e.preventDefault();
@@ -46,6 +51,8 @@ export function useKeyboard() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Modal open: only Esc (handled above) and Enter for the resume prompt.
+      if (s.ui.resumePrompt || s.ui.unlockOpen || s.ui.epgEditChannel || s.ui.seriesOpen != null) return;
 
       // Letters are matched case-insensitively so Shift/CapsLock combos still work.
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -72,6 +79,16 @@ export function useKeyboard() {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent(LIST_MOVE, { detail: -12 }));
           break;
+        case "ArrowLeft":
+          e.preventDefault();
+          if (s.playback?.is_vod) void s.seekBy(-10);
+          else window.dispatchEvent(new CustomEvent(EPG_SHIFT, { detail: -2 }));
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          if (s.playback?.is_vod) void s.seekBy(10);
+          else window.dispatchEvent(new CustomEvent(EPG_SHIFT, { detail: 2 }));
+          break;
         case "Enter":
           e.preventDefault();
           window.dispatchEvent(new CustomEvent(LIST_ENTER));
@@ -91,6 +108,15 @@ export function useKeyboard() {
         case "p":
           e.preventDefault();
           void s.toggleProfile();
+          break;
+        case "1":
+          s.setTab("live");
+          break;
+        case "2":
+          if (!s.config?.hide_vod_tabs) s.setTab("movies");
+          break;
+        case "3":
+          if (!s.config?.hide_vod_tabs) s.setTab("series");
           break;
         case "s":
           if (e.shiftKey) {
