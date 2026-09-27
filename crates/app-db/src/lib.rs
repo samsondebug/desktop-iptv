@@ -118,8 +118,7 @@ impl Db {
 
     /// Set the parental keyword filter applied to catalog queries (empty = show everything).
     pub fn set_hidden_keywords(&self, keywords: &[String]) {
-        let mut kws: Vec<String> =
-            keywords.iter().map(|k| k.trim().to_lowercase()).filter(|k| !k.is_empty()).collect();
+        let mut kws: Vec<String> = keywords.iter().map(|k| k.trim().to_lowercase()).filter(|k| !k.is_empty()).collect();
         kws.sort();
         kws.dedup();
         *self.hidden.write().unwrap() = kws;

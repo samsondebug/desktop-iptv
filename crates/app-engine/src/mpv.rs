@@ -272,6 +272,16 @@ impl PlayerEngine for MpvEngine {
         self.shared.cmd(&["seek", &format!("{:.2}", secs.max(0.0)), "absolute"])
     }
 
+    fn set_record(&self, path: Option<&str>) -> Result<()> {
+        // `stream-record` is a runtime-changeable property: setting it starts writing the raw
+        // stream (same connection as playback); the empty string stops.
+        self.shared.set_prop("stream-record", path.unwrap_or(""))
+    }
+
+    fn record_path(&self) -> Option<String> {
+        self.shared.get_prop("stream-record").ok().flatten().filter(|s| !s.is_empty())
+    }
+
     fn stop(&self) -> Result<()> {
         *self.shared.load_started.lock().unwrap() = None;
         self.shared.cmd(&["stop"])

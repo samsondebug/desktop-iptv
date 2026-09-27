@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
+LIVE_KBPS = int(os.environ.get("MOCK_LIVE_KBPS", "8000"))
 MEDIA = sys.argv[2] if len(sys.argv) > 2 else None
 USER, PASS = "user", "pass"
 N_LIVE, N_MOVIES, N_SERIES = 1000, 240, 24
@@ -114,6 +115,28 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def stream_live(self):
+        """Loop the sample file forever as a chunked live stream, paced at LIVE_KBPS (like a real
+        8 Mbps channel) so recorders/downloaders behave as they would against a provider."""
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp2t")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        chunk = 64 * 1024
+        per_chunk = chunk * 8 / (LIVE_KBPS * 1000.0)
+        try:
+            while True:
+                with open(MEDIA, "rb") as f:
+                    while True:
+                        data = f.read(chunk)
+                        if not data:
+                            break
+                        self.wfile.write(b"%x\r\n%s\r\n" % (len(data), data))
+                        self.wfile.flush()
+                        time.sleep(per_chunk)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
@@ -152,6 +175,8 @@ class H(BaseHTTPRequestHandler):
         if u.path.startswith(("/live/", "/movie/", "/series/")):
             parts = u.path.split("/")
             if len(parts) >= 5 and parts[2] == USER and parts[3] == PASS and MEDIA and os.path.exists(MEDIA):
+                if parts[1] == "live":
+                    return self.stream_live()
                 with open(MEDIA, "rb") as f:
                     data = f.read()
                 return self.send(200, data, "video/mp2t")

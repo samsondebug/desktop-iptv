@@ -97,6 +97,11 @@ pub trait PlayerEngine: Send + Sync {
     fn load(&self, url: &str, profile: ProfileMode, audio_boost: u16, start_secs: Option<f64>) -> Result<()>;
     /// Absolute seek (VOD).
     fn seek(&self, secs: f64) -> Result<()>;
+    /// Single-connection record tap: mpv's `stream-record` writes the raw demuxed stream to
+    /// `path` while playback continues (CLAUDE.md §6.4). `None` stops recording.
+    fn set_record(&self, path: Option<&str>) -> Result<()>;
+    /// Path currently being recorded to, if any.
+    fn record_path(&self) -> Option<String>;
     fn stop(&self) -> Result<()>;
 
     /// Switch profile. Live-switchable keys apply immediately; the caller decides whether to

@@ -157,6 +157,17 @@ impl Db {
         })
     }
 
+    /// Rows left in `recording` by a previous process (crash / force quit): no job survives a restart,
+    /// so mark them failed with whatever bytes reached disk. Call once at startup, before the scheduler.
+    pub fn fail_interrupted_recordings(&self) -> Result<u64> {
+        self.with_write(|c| {
+            Ok(c.execute(
+                "UPDATE recordings SET status = 'failed', error = 'interrupted: app closed while recording' WHERE status = 'recording'",
+                [],
+            )? as u64)
+        })
+    }
+
     // ---------- downloads ----------
 
     pub fn add_download(&self, item_type: &str, item_id: i64, title: &str, path: &str) -> Result<i64> {

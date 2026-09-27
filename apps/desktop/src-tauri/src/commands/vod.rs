@@ -27,12 +27,24 @@ pub struct ListVodRequest {
 pub fn list_vod(state: State<'_, AppState>, req: ListVodRequest) -> CmdResult<Vec<VodRecord>> {
     state
         .db
-        .list_vod(req.playlist_id, &req.kind, req.category.as_deref(), req.sort.as_deref().unwrap_or("added"), req.limit, req.offset)
+        .list_vod(
+            req.playlist_id,
+            &req.kind,
+            req.category.as_deref(),
+            req.sort.as_deref().unwrap_or("added"),
+            req.limit,
+            req.offset,
+        )
         .map_err(err)
 }
 
 #[tauri::command]
-pub fn count_vod(state: State<'_, AppState>, playlist_id: i64, kind: String, category: Option<String>) -> CmdResult<i64> {
+pub fn count_vod(
+    state: State<'_, AppState>,
+    playlist_id: i64,
+    kind: String,
+    category: Option<String>,
+) -> CmdResult<i64> {
     state.db.vod_count(playlist_id, &kind, category.as_deref()).map_err(err)
 }
 
@@ -42,7 +54,13 @@ pub fn vod_groups(state: State<'_, AppState>, playlist_id: i64, kind: String) ->
 }
 
 #[tauri::command]
-pub fn search_vod(state: State<'_, AppState>, playlist_id: i64, query: String, kind: Option<String>, limit: usize) -> CmdResult<Vec<VodRecord>> {
+pub fn search_vod(
+    state: State<'_, AppState>,
+    playlist_id: i64,
+    query: String,
+    kind: Option<String>,
+    limit: usize,
+) -> CmdResult<Vec<VodRecord>> {
     state.db.search_vod(&query, playlist_id, kind.as_deref(), limit).map_err(err)
 }
 
@@ -68,7 +86,8 @@ pub async fn series_detail(state: State<'_, AppState>, series_id: i64, force: bo
     if series.kind == "series" && (force || series.episodes_synced.is_none()) {
         let src = state.db.playlist_source(series.playlist_id).map_err(err)?;
         if src.r#type == "xtream" {
-            let adapter = XtreamAdapter::from_playlist(state.db.clone(), series.playlist_id, Arc::new(NoopSink)).map_err(err)?;
+            let adapter =
+                XtreamAdapter::from_playlist(state.db.clone(), series.playlist_id, Arc::new(NoopSink)).map_err(err)?;
             let (info, episodes) = adapter.client.series_info(&series.source_id).await.map_err(err)?;
             if let Some(mut v) = info {
                 v.category = series.category.clone();

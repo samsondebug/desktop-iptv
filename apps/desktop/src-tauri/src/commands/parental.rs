@@ -57,7 +57,11 @@ pub fn parental_status(state: State<'_, AppState>) -> CmdResult<ParentalStatus> 
 
 /// Set or change the PIN. `current_pin` is required when one is already set.
 #[tauri::command]
-pub fn set_parental_pin(state: State<'_, AppState>, pin: String, current_pin: Option<String>) -> CmdResult<ParentalStatus> {
+pub fn set_parental_pin(
+    state: State<'_, AppState>,
+    pin: String,
+    current_pin: Option<String>,
+) -> CmdResult<ParentalStatus> {
     let pin = pin.trim();
     if pin.len() < 4 || pin.len() > 12 || !pin.chars().all(|c| c.is_ascii_digit()) {
         return Err("PIN must be 4–12 digits".into());
@@ -108,7 +112,11 @@ pub fn lock_parental(state: State<'_, AppState>) -> CmdResult<ParentalStatus> {
 }
 
 #[tauri::command]
-pub fn set_parental_keywords(state: State<'_, AppState>, keywords: Vec<String>, pin: Option<String>) -> CmdResult<ParentalStatus> {
+pub fn set_parental_keywords(
+    state: State<'_, AppState>,
+    keywords: Vec<String>,
+    pin: Option<String>,
+) -> CmdResult<ParentalStatus> {
     if let Some(existing) = state.db.get_setting(KEY_PIN).map_err(err)? {
         let unlocked = *state.parental_unlocked.lock().unwrap();
         if !unlocked && hash_pin(&state, &pin.unwrap_or_default()) != existing {

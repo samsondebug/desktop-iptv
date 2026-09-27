@@ -4,6 +4,7 @@
 //! `src/lib/ipc.ts`). No video bytes, no HTTP, no secrets cross this boundary.
 
 mod commands;
+mod dvr;
 mod state;
 mod sync;
 
@@ -14,6 +15,9 @@ use std::time::{Duration, Instant};
 use tauri::{Emitter, Manager};
 
 pub use state::AppState;
+
+/// Process-wide app handle for callbacks that only receive `&AppState`.
+pub static APP: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
 
 /// Name of the event that carries `app_engine::EngineEvent` payloads to the frontend.
 pub const EV_ENGINE: &str = "engine_event";
@@ -78,7 +82,13 @@ fn on_engine_event(app: &tauri::AppHandle, ev: EngineEvent) {
                 let _ = state.db.set_progress("episode", id, i64::MAX / 4, Some(1)); // mark finished
                 if let Ok(Some(next)) = state.db.next_episode(id) {
                     tracing::info!(episode = next.id, "auto-next");
-                    let start = state.db.get_progress("episode", next.id).ok().flatten().filter(|p| !p.finished).map(|p| p.position_s as f64);
+                    let start = state
+                        .db
+                        .get_progress("episode", next.id)
+                        .ok()
+                        .flatten()
+                        .filter(|p| !p.finished)
+                        .map(|p| p.position_s as f64);
                     if commands::playback::do_load(
                         &state,
                         &next.stream_url,
@@ -113,6 +123,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            let _ = APP.set(app.handle().clone());
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             let db_path = data_dir.join("catalog.db");
@@ -141,16 +152,37 @@ pub fn run() {
             let state = AppState::new(db.clone(), engine, data_dir);
             let _ = commands::parental::apply_filter(&state);
             app.manage(state);
+            app.manage(dvr::DvrState::default());
 
-            // Housekeeping: recordings that were scheduled while the app was closed.
+            // Housekeeping: recordings that were scheduled while the app was closed, interrupted
+            // downloads, then the DVR scheduler loop.
             let _ = db.expire_missed_recordings(commands::now_unix());
+            if let Ok(n) = db.fail_interrupted_recordings() {
+                if n > 0 {
+                    tracing::warn!(n, "recordings interrupted by a previous shutdown marked failed");
+                }
+            }
+            if let Some(state) = app.try_state::<AppState>() {
+                dvr::resume_queued(app.handle(), &state);
+            }
+            dvr::spawn_scheduler(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
+                if window.label() != "main" {
+                    return;
+                }
                 if let Some(state) = window.try_state::<AppState>() {
                     commands::playback::save_progress_now(&state);
+                    for (_, p) in state.panes.lock().unwrap().drain() {
+                        p.engine.shutdown();
+                    }
                     state.engine.shutdown();
+                }
+                // Closing the main window closes the app (panes included).
+                for (_, w) in window.app_handle().webview_windows() {
+                    let _ = w.close();
                 }
             }
         })
@@ -233,6 +265,33 @@ pub fn run() {
             commands::unlock_parental,
             commands::lock_parental,
             commands::set_parental_keywords,
+            // dvr
+            commands::record_now,
+            commands::schedule_recording,
+            commands::stop_recording,
+            commands::list_recordings,
+            commands::delete_recording,
+            commands::play_recording,
+            commands::connection_budget,
+            commands::download_item,
+            commands::list_downloads,
+            commands::pause_download,
+            commands::resume_download,
+            commands::delete_download,
+            commands::play_download,
+            commands::media_dir,
+            commands::set_media_dir,
+            // windows
+            commands::set_mini_mode,
+            commands::is_mini_mode,
+            commands::list_panes,
+            commands::pane_open,
+            commands::pane_play,
+            commands::pane_stop,
+            commands::pane_close,
+            commands::pane_audio,
+            commands::pane_set_video_rect,
+            commands::pane_telemetry,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,6 +6,7 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
   const setUi = useApp((s) => s.setUi);
   const playEpisode = useApp((s) => s.playEpisode);
   const current = useApp((s) => s.currentEpisode);
+  const pushToast = useApp((s) => s.pushToast);
   const [detail, setDetail] = useState<SeriesDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [season, setSeason] = useState<number | null>(null);
@@ -132,6 +133,18 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
                           ↺
                         </button>
                       )}
+                      <button
+                        className="btn ghost"
+                        title="Download (PRO)"
+                        onClick={() =>
+                          void ipc
+                            .downloadItem("episode", e.id)
+                            .then((d) => pushToast({ level: "info", title: "Download queued", body: d.path }))
+                            .catch((err) => pushToast({ level: "error", title: "Download refused", body: String(err) }))
+                        }
+                      >
+                        ⤓
+                      </button>
                     </div>
                   </div>
                 );

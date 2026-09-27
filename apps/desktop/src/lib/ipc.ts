@@ -341,9 +341,88 @@ export interface ListVodRequest {
   offset: number;
 }
 
+// DVR / windows
+export interface RecordingRecord {
+  id: number;
+  channel_id: number;
+  channel_name: string;
+  title: string | null;
+  start: number;
+  stop: number;
+  extra_end_s: number;
+  path: string;
+  status: "scheduled" | "recording" | "completed" | "failed";
+  bytes: number;
+  error: string | null;
+}
+export interface DownloadRecord {
+  id: number;
+  item_type: "vod" | "episode";
+  item_id: number;
+  title: string;
+  path: string;
+  bytes_done: number;
+  bytes_total: number | null;
+  status: "queued" | "downloading" | "paused" | "completed" | "failed";
+  error: string | null;
+}
+export interface RecordStartResult {
+  id: number;
+  mode: "tap" | "raw" | "headless" | "running";
+  path: string;
+  warning: string | null;
+}
+export interface ConnectionBudget {
+  in_use: number;
+  max: number | null;
+}
+export type DvrEvent =
+  | { type: "recording_started"; id: number; mode: string }
+  | { type: "recording_progress"; id: number; bytes: number }
+  | { type: "recording_stopped"; id: number; status: string; bytes: number; error: string | null }
+  | { type: "download_progress"; id: number; bytes_done: number; bytes_total: number | null }
+  | { type: "download_done"; id: number; status: string; error: string | null };
+export interface PaneInfo {
+  label: string;
+  playing: boolean;
+  channel_id: number | null;
+  has_audio: boolean;
+}
+
 // ---------- commands ----------
 
 export const ipc = {
+  // dvr
+  recordNow: (channelId: number, minutes: number, title: string | null) => invoke<RecordStartResult>("record_now", { channelId, minutes, title }),
+  scheduleRecording: (channelId: number, start: number, stop: number, title: string | null, extraEndS: number | null) =>
+    invoke<number>("schedule_recording", { channelId, start, stop, title, extraEndS }),
+  stopRecording: (id: number) => invoke<void>("stop_recording", { id }),
+  listRecordings: () => invoke<RecordingRecord[]>("list_recordings"),
+  deleteRecording: (id: number, deleteFile: boolean) => invoke<void>("delete_recording", { id, deleteFile }),
+  playRecording: (id: number) => invoke<PlaybackState>("play_recording", { id }),
+  connectionBudget: (playlistId: number | null) => invoke<ConnectionBudget>("connection_budget", { playlistId }),
+  downloadItem: (itemType: "vod" | "episode", itemId: number) => invoke<DownloadRecord>("download_item", { itemType, itemId }),
+  listDownloads: () => invoke<DownloadRecord[]>("list_downloads"),
+  pauseDownload: (id: number) => invoke<void>("pause_download", { id }),
+  resumeDownload: (id: number) => invoke<void>("resume_download", { id }),
+  deleteDownload: (id: number, deleteFile: boolean) => invoke<void>("delete_download", { id, deleteFile }),
+  playDownload: (id: number) => invoke<PlaybackState>("play_download", { id }),
+  mediaDir: () => invoke<string>("media_dir"),
+  setMediaDir: (path: string | null) => invoke<void>("set_media_dir", { path }),
+
+  // windows
+  setMiniMode: (on: boolean) => invoke<boolean>("set_mini_mode", { on }),
+  isMiniMode: () => invoke<boolean>("is_mini_mode"),
+  listPanes: () => invoke<PaneInfo[]>("list_panes"),
+  paneOpen: (channelId: number | null) => invoke<PaneInfo>("pane_open", { channelId }),
+  panePlay: (label: string, channelId: number) => invoke<void>("pane_play", { label, channelId }),
+  paneStop: (label: string) => invoke<void>("pane_stop", { label }),
+  paneClose: (label: string) => invoke<void>("pane_close", { label }),
+  paneAudio: (label: string) => invoke<void>("pane_audio", { label }),
+  paneSetVideoRect: (label: string, x: number, y: number, w: number, h: number, winW: number, winH: number) =>
+    invoke<void>("pane_set_video_rect", { label, x, y, w, h, winW, winH }),
+  paneTelemetry: (label: string) => invoke<EngineTelemetryEvent>("pane_telemetry", { label }),
+
   // bootstrap / config / license / theme
   getBootstrap: () => invoke<Bootstrap>("get_bootstrap"),
   getConfig: () => invoke<ConfigPayload>("get_config"),
@@ -451,6 +530,10 @@ export const events = {
   onImportDone: (cb: (ev: ImportDone) => void): Promise<UnlistenFn> => listen<ImportDone>("import_done", (e) => cb(e.payload)),
   onPlaybackState: (cb: (ev: PlaybackState) => void): Promise<UnlistenFn> =>
     listen<PlaybackState>("playback_state", (e) => cb(e.payload)),
+  onDvr: (cb: (ev: DvrEvent) => void): Promise<UnlistenFn> => listen<DvrEvent>("dvr_event", (e) => cb(e.payload)),
+  onPanesChanged: (cb: (panes: PaneInfo[]) => void): Promise<UnlistenFn> => listen<PaneInfo[]>("panes_changed", (e) => cb(e.payload)),
+  onPaneEngine: (cb: (label: string, ev: EngineEvent) => void): Promise<UnlistenFn> =>
+    listen<{ label: string; event: EngineEvent }>("engine_event_pane", (e) => cb(e.payload.label, e.payload.event)),
 };
 
 export const isTauri = () =>

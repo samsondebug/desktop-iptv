@@ -25,6 +25,9 @@ export function useKeyboard() {
           if ((target as HTMLInputElement).id === "channel-search") s.setSearch("");
           return;
         }
+        if (s.ui.recordDialog) return s.setUi({ recordDialog: null });
+        if (s.ui.libraryOpen) return s.setUi({ libraryOpen: false });
+        if (s.mini) return void s.setMini(false);
         if (s.ui.resumePrompt) return s.setUi({ resumePrompt: null });
         if (s.ui.unlockOpen) return s.setUi({ unlockOpen: false });
         if (s.ui.epgEditChannel) return s.setUi({ epgEditChannel: null });
@@ -52,7 +55,7 @@ export function useKeyboard() {
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Modal open: only Esc (handled above) and Enter for the resume prompt.
-      if (s.ui.resumePrompt || s.ui.unlockOpen || s.ui.epgEditChannel || s.ui.seriesOpen != null) return;
+      if (s.ui.resumePrompt || s.ui.unlockOpen || s.ui.epgEditChannel || s.ui.seriesOpen != null || s.ui.recordDialog || s.ui.libraryOpen) return;
 
       // Letters are matched case-insensitively so Shift/CapsLock combos still work.
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -108,6 +111,16 @@ export function useKeyboard() {
         case "p":
           e.preventDefault();
           void s.toggleProfile();
+          break;
+        case "r":
+          if (s.currentChannel) {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent("diptv:record", { detail: s.currentChannel }));
+          }
+          break;
+        case "i":
+          e.preventDefault();
+          void s.setMini(!s.mini);
           break;
         case "1":
           s.setTab("live");

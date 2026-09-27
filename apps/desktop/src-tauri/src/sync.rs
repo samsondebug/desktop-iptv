@@ -84,7 +84,15 @@ pub fn is_syncing(playlist_id: i64) -> bool {
 
 fn done(app: &AppHandle, playlist_id: i64, phase: &str, result: Result<SyncStats, app_net::NetError>) -> bool {
     let payload = match result {
-        Ok(stats) => ImportDone { playlist_id, phase: phase.into(), ok: true, stats: Some(stats), error: None, error_kind: None, preview: None },
+        Ok(stats) => ImportDone {
+            playlist_id,
+            phase: phase.into(),
+            ok: true,
+            stats: Some(stats),
+            error: None,
+            error_kind: None,
+            preview: None,
+        },
         Err(app_net::NetError::Preflight(p)) => ImportDone {
             playlist_id,
             phase: phase.into(),
@@ -131,7 +139,12 @@ pub fn spawn_sync(app: AppHandle, db: Arc<app_db::Db>, playlist_id: i64, scope: 
     true
 }
 
-async fn run_sync(app: &AppHandle, db: Arc<app_db::Db>, playlist_id: i64, scope: SyncScope) -> Result<(), app_net::NetError> {
+async fn run_sync(
+    app: &AppHandle,
+    db: Arc<app_db::Db>,
+    playlist_id: i64,
+    scope: SyncScope,
+) -> Result<(), app_net::NetError> {
     let src = db.playlist_source(playlist_id)?;
     let sink = EmitSink::new(app.clone(), "live");
 
@@ -190,7 +203,15 @@ async fn run_sync(app: &AppHandle, db: Arc<app_db::Db>, playlist_id: i64, scope:
                 let sources = db.enabled_epg_sources(playlist_id)?;
                 if sources.is_empty() {
                     if scope == SyncScope::EpgOnly {
-                        done(app, playlist_id, "epg", Err(app_net::NetError::Other("No EPG source configured for this playlist. Add an XMLTV URL in Settings → Guide.".into())));
+                        done(
+                            app,
+                            playlist_id,
+                            "epg",
+                            Err(app_net::NetError::Other(
+                                "No EPG source configured for this playlist. Add an XMLTV URL in Settings → Guide."
+                                    .into(),
+                            )),
+                        );
                     }
                 } else {
                     let mut total = SyncStats::default();

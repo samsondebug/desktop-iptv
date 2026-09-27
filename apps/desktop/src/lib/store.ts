@@ -17,6 +17,7 @@ import {
   type ImportDone,
   type ImportProgress,
   type LicenseStateResponse,
+  type PaneInfo,
   type ParentalStatus,
   type PlaybackState,
   type PlaylistMeta,
@@ -90,6 +91,12 @@ interface AppStore {
 
   imports: Record<number, ImportProgress>;
   toasts: Toast[];
+  panes: PaneInfo[];
+  mini: boolean;
+  /** recording id → bytes (live progress) */
+  recordingBytes: Record<number, number>;
+  activeRecordings: number;
+  downloadProgress: Record<number, { done: number; total: number | null }>;
 
   ui: {
     fullscreen: boolean;
@@ -104,7 +111,11 @@ interface AppStore {
     epgEditChannel: ChannelRecord | null;
     vodSort: "added" | "title" | "year" | "rating";
     vodCategory: string | null;
+    recordDialog: { channel: ChannelRecord; programme?: { start: number; stop: number; title: string } } | null;
+    libraryOpen: boolean;
   };
+  setMini: (on: boolean) => Promise<void>;
+  openPane: (channelId: number | null) => Promise<void>;
 
   init: () => Promise<void>;
   reloadPlaylists: () => Promise<void>;
@@ -175,6 +186,11 @@ export const useApp = create<AppStore>((set, get) => ({
 
   imports: {},
   toasts: [],
+  panes: [],
+  mini: false,
+  recordingBytes: {},
+  activeRecordings: 0,
+  downloadProgress: {},
 
   ui: {
     fullscreen: false,
@@ -189,6 +205,8 @@ export const useApp = create<AppStore>((set, get) => ({
     epgEditChannel: null,
     vodSort: "added",
     vodCategory: null,
+    recordDialog: null,
+    libraryOpen: false,
   },
 
   init: async () => {
@@ -231,6 +249,46 @@ export const useApp = create<AppStore>((set, get) => ({
     await events.onPlaybackState((pb) => {
       void get().applyPlaybackState(pb);
     });
+
+    await events.onDvr((ev) => {
+      switch (ev.type) {
+        case "recording_started":
+          set((s) => ({ activeRecordings: s.activeRecordings + 1 }));
+          get().pushToast({ level: "info", title: ev.mode === "tap" ? "Recording (same connection as playback)" : ev.mode === "headless" ? "Recording (HLS, separate player)" : "Recording (separate connection)" });
+          break;
+        case "recording_progress":
+          set((s) => ({ recordingBytes: { ...s.recordingBytes, [ev.id]: ev.bytes } }));
+          break;
+        case "recording_stopped":
+          set((s) => {
+            const recordingBytes = { ...s.recordingBytes };
+            delete recordingBytes[ev.id];
+            return { recordingBytes, activeRecordings: Math.max(0, s.activeRecordings - 1) };
+          });
+          get().pushToast({
+            level: ev.status === "failed" ? "error" : "info",
+            title: ev.status === "failed" ? "Recording failed" : `Recording saved (${(ev.bytes / 1e6).toFixed(0)} MB)`,
+            body: ev.error ?? undefined,
+          });
+          break;
+        case "download_progress":
+          set((s) => ({ downloadProgress: { ...s.downloadProgress, [ev.id]: { done: ev.bytes_done, total: ev.bytes_total } } }));
+          break;
+        case "download_done":
+          set((s) => {
+            const downloadProgress = { ...s.downloadProgress };
+            delete downloadProgress[ev.id];
+            return { downloadProgress };
+          });
+          if (ev.status === "completed") get().pushToast({ level: "info", title: "Download finished" });
+          else if (ev.status === "failed") get().pushToast({ level: "error", title: "Download failed", body: ev.error ?? undefined });
+          break;
+      }
+    });
+
+    await events.onPanesChanged((panes) => set({ panes }));
+    ipc.listPanes().then((panes) => set({ panes })).catch(() => {});
+    ipc.listRecordings().then((r) => set({ activeRecordings: r.filter((x) => x.status === "recording").length })).catch(() => {});
 
     await events.onImportProgress((ev) => {
       set((s) => ({ imports: { ...s.imports, [ev.playlist_id]: ev } }));
@@ -463,6 +521,32 @@ export const useApp = create<AppStore>((set, get) => ({
     set((s) => ({ parental, listVersion: s.listVersion + 1 }));
     const id = get().activePlaylistId;
     if (id != null) set({ groups: await ipc.listGroups(id) });
+  },
+
+  setMini: async (on) => {
+    try {
+      const v = await ipc.setMiniMode(on);
+      set({ mini: v });
+    } catch (e) {
+      get().pushToast({ level: "error", title: "Mini mode failed", body: String(e) });
+    }
+  },
+  openPane: async (channelId) => {
+    try {
+      const budget = await ipc.connectionBudget(get().activePlaylistId);
+      if (budget.max != null && budget.in_use + 1 > budget.max) {
+        get().pushToast({
+          level: "warn",
+          title: `Provider allows ${budget.max} connection${budget.max === 1 ? "" : "s"}; ${budget.in_use} in use`,
+          body: "Opening another pane may get one of the streams refused. Continuing anyway.",
+        });
+      }
+      const pane = await ipc.paneOpen(channelId);
+      set({ panes: await ipc.listPanes() });
+      get().pushToast({ level: "info", title: `Opened ${pane.label}`, body: "Audio stays on the main player — use the speaker button in the pane to switch." });
+    } catch (e) {
+      get().pushToast({ level: "error", title: "Could not open a pane", body: String(e) });
+    }
   },
 
   setUi: (patch) => set((s) => ({ ui: { ...s.ui, ...patch } })),

@@ -17,6 +17,9 @@ import SeriesModal from "./features/vod/SeriesModal";
 import SettingsDrawer from "./features/settings/SettingsDrawer";
 import AddPlaylistDialog from "./features/settings/AddPlaylistDialog";
 import DiagnosticsPanel from "./features/diagnostics/DiagnosticsPanel";
+import RecordDialog from "./features/dvr/RecordDialog";
+import LibraryModal from "./features/dvr/LibraryModal";
+import type { ChannelRecord } from "./lib/ipc";
 
 /** Apply user theme tokens (CSS variables) on top of the built-in theme. */
 function useThemeTokens() {
@@ -72,6 +75,19 @@ export default function App() {
 
   useKeyboard();
 
+  // "Record…" requests from the guide / player open the record dialog.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ channel: ChannelRecord; programme?: { start: number; stop: number; title: string } } | ChannelRecord>).detail;
+      if ("channel" in d) useApp.getState().setUi({ recordDialog: d });
+      else useApp.getState().setUi({ recordDialog: { channel: d } });
+    };
+    window.addEventListener("diptv:record", on);
+    return () => window.removeEventListener("diptv:record", on);
+  }, []);
+
+  const mini = useApp((s) => s.mini);
+
   if (!ready || !config) {
     return (
       <div className="opaque h-full w-full flex items-center justify-center" style={{ color: "var(--text-dim)" }}>
@@ -81,6 +97,15 @@ export default function App() {
   }
 
   if (!config.legal_accepted) return <LegalGate />;
+
+  if (mini) {
+    return (
+      <div className="h-full w-full flex flex-col" style={{ background: "transparent" }}>
+        <PlayerPane />
+        <Toasts />
+      </div>
+    );
+  }
 
   const empty = playlists.length === 0;
   const bottom = empty ? <EmptyState /> : tab === "live" ? guideMode === "guide" ? <EpgGrid /> : <ChannelList /> : <VodBrowser kind={tab === "movies" ? "movie" : "series"} />;
@@ -109,6 +134,8 @@ export default function App() {
       {ui.resumePrompt && <ResumePromptModal />}
       {ui.unlockOpen && <UnlockModal />}
       {ui.epgEditChannel && <EpgEditModal />}
+      {ui.recordDialog && <RecordDialog />}
+      {ui.libraryOpen && <LibraryModal />}
       <Toasts />
     </div>
   );

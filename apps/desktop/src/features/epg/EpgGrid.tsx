@@ -26,6 +26,7 @@ interface Menu {
   x: number;
   y: number;
   ch: ChannelRecord;
+  p?: Programme;
 }
 
 function floorToHalfHour(unix: number) {
@@ -262,7 +263,7 @@ export default function EpgGrid() {
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  if (ch) setMenu({ x: e.clientX, y: e.clientY, ch });
+                  if (ch) setMenu({ x: e.clientX, y: e.clientY, ch, p: hover?.p });
                 }}
               >
                 <div className="epg-ch" style={{ width: CH_COL_W }}>
@@ -338,7 +339,16 @@ export default function EpgGrid() {
           <MenuItem label="▶ Play" onClick={() => { void play(menu.ch); setMenu(null); }} />
           <MenuItem label={favoriteIds.has(menu.ch.id) ? "★ Remove favorite" : "☆ Add favorite"} onClick={() => { void toggleFavorite(menu.ch); setMenu(null); }} />
           <MenuItem label="✎ Edit EPG (tvg-id)" onClick={() => { setUi({ epgEditChannel: menu.ch }); setMenu(null); }} />
-          <MenuItem label="● Record…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
+          {menu.p && (
+            <MenuItem
+              label={`● Record “${menu.p.title.slice(0, 28)}${menu.p.title.length > 28 ? "…" : ""}”`}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent("diptv:record", { detail: { channel: menu.ch, programme: { start: menu.p!.start, stop: menu.p!.stop, title: menu.p!.title } } }));
+                setMenu(null);
+              }}
+            />
+          )}
+          <MenuItem label="● Record now…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
         </div>
       )}
     </div>

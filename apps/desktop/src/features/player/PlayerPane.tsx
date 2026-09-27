@@ -42,6 +42,10 @@ export default function PlayerPane() {
   const setVolume = useApp((s) => s.setVolume);
   const setProfile = useApp((s) => s.setProfile);
   const stop = useApp((s) => s.stop);
+  const mini = useApp((s) => s.mini);
+  const setMini = useApp((s) => s.setMini);
+  const openPane = useApp((s) => s.openPane);
+  const activeRecordings = useApp((s) => s.activeRecordings);
   const [chromeVisible, setChromeVisible] = useState(true);
   const hideTimer = useRef<number | null>(null);
 
@@ -138,8 +142,21 @@ export default function PlayerPane() {
         </div>
       )}
 
+      {/* Mini mode: drag handle + exit */}
+      {mini && (
+        <div className="absolute top-0 left-0 right-0 flex items-center gap-1 px-2 fade-chrome" style={{ height: 30, background: "linear-gradient(rgba(0,0,0,0.6), transparent)" }} data-tauri-drag-region>
+          <span className="hud" data-tauri-drag-region style={{ fontFamily: "var(--font)", fontSize: 11 }}>
+            {label}
+          </span>
+          <div className="flex-1" data-tauri-drag-region />
+          <button className="btn ghost" style={{ color: "white", padding: "0 6px" }} onClick={() => void setMini(false)} title="Back to the full window">
+            ⤢
+          </button>
+        </div>
+      )}
+
       {/* Top-left: channel identity */}
-      {current && (
+      {current && !mini && (
         <div className="absolute top-3 left-3 flex items-center gap-2 fade-chrome">
           {!isVod && <span className="badge-live">LIVE</span>}
           <span className="hud" style={{ fontFamily: "var(--font)", fontSize: 13, fontWeight: 600 }}>
@@ -153,8 +170,8 @@ export default function PlayerPane() {
         </div>
       )}
 
-      {/* Top-right: HUD */}
-      {current && (config.hud_enabled || (chromeVisible && !ui.fullscreen)) && (
+      {/* Top-right: HUD (not in mini mode — no room) */}
+      {current && !mini && (config.hud_enabled || (chromeVisible && !ui.fullscreen)) && (
         <div className="absolute top-3 right-3 fade-chrome">
           <Hud />
         </div>
@@ -188,22 +205,26 @@ export default function PlayerPane() {
             <button className="btn ghost" style={{ color: "white" }} onClick={() => void toggleMute()} title="Mute (m)">
               {playback?.muted || playback?.volume === 0 ? "🔇" : "🔊"}
             </button>
-            <input
-              type="range"
-              min={0}
-              max={130}
-              value={playback?.muted ? 0 : (playback?.volume ?? 100)}
-              onChange={(e) => void setVolume(Number(e.target.value))}
-              style={{ width: 120, accentColor: "var(--accent)" }}
-              title="Volume (up to 130%)"
-            />
-            <span className="hud" style={{ minWidth: 44, textAlign: "center" }}>
-              {playback?.muted ? "mute" : `${playback?.volume ?? 100}%`}
-            </span>
+            {!mini && (
+              <>
+                <input
+                  type="range"
+                  min={0}
+                  max={130}
+                  value={playback?.muted ? 0 : (playback?.volume ?? 100)}
+                  onChange={(e) => void setVolume(Number(e.target.value))}
+                  style={{ width: 120, accentColor: "var(--accent)" }}
+                  title="Volume (up to 130%)"
+                />
+                <span className="hud" style={{ minWidth: 44, textAlign: "center" }}>
+                  {playback?.muted ? "mute" : `${playback?.volume ?? 100}%`}
+                </span>
+              </>
+            )}
 
             <div className="flex-1" />
 
-            {!isVod && (
+            {!isVod && !mini && (
               <div className="seg" title="Playback profile (p): Low Latency = 3 s cache for sports · Stable = 20–60 s cache for bad Wi-Fi">
                 <button className={profile === "low_latency" ? "on" : ""} onClick={() => void setProfile("low_latency")}>
                   Low latency
@@ -213,17 +234,41 @@ export default function PlayerPane() {
                 </button>
               </div>
             )}
-            {currentChannel && (
+            {currentChannel && !mini && (
               <button className="btn ghost" style={{ color: isFav ? "var(--warn)" : "white" }} onClick={() => void toggleFavorite(currentChannel)} title="Favorite">
                 {isFav ? "★" : "☆"}
               </button>
             )}
-            <button className="btn ghost" style={{ color: "white" }} onClick={() => void ipc.openInExternalPlayer().catch(() => {})} title="Open in external player (mpv/VLC via the OS)">
-              ⧉
-            </button>
-            <button className="btn ghost" style={{ color: "white" }} onClick={() => setUi({ fullscreen: !ui.fullscreen })} title="Fullscreen (f)">
-              {ui.fullscreen ? "⤡" : "⤢"}
-            </button>
+            {currentChannel && !mini && (
+              <button
+                className="btn ghost"
+                style={{ color: activeRecordings > 0 ? "var(--live)" : "white" }}
+                onClick={() => window.dispatchEvent(new CustomEvent("diptv:record", { detail: currentChannel }))}
+                title={activeRecordings > 0 ? `Recording (${activeRecordings} active) — open Library to stop` : "Record this channel (PRO)"}
+              >
+                ●
+              </button>
+            )}
+            {!mini && (
+              <button className="btn ghost" style={{ color: "white" }} onClick={() => void setMini(true)} title="Mini player (always on top)">
+                ⧉
+              </button>
+            )}
+            {!mini && !isVod && (
+              <button className="btn ghost" style={{ color: "white" }} onClick={() => void openPane(currentChannel?.id ?? null)} title="Open another pane (multiscreen, PRO)">
+                ⊞
+              </button>
+            )}
+            {!mini && (
+              <button className="btn ghost" style={{ color: "white" }} onClick={() => void ipc.openInExternalPlayer().catch(() => {})} title="Open in external player (mpv/VLC via the OS)">
+                ↗
+              </button>
+            )}
+            {!mini && (
+              <button className="btn ghost" style={{ color: "white" }} onClick={() => setUi({ fullscreen: !ui.fullscreen })} title="Fullscreen (f)">
+                {ui.fullscreen ? "⤡" : "⤢"}
+              </button>
+            )}
           </div>
         </div>
       )}

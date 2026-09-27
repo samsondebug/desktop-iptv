@@ -51,6 +51,14 @@ impl Playback {
     }
 }
 
+/// A multiscreen pane: its own window, its own engine (CLAUDE.md §6.5).
+pub struct Pane {
+    pub engine: Arc<dyn PlayerEngine>,
+    pub playing: bool,
+    pub channel_id: Option<i64>,
+    pub has_audio: bool,
+}
+
 pub struct AppState {
     pub db: Arc<app_db::Db>,
     pub engine: Arc<dyn PlayerEngine>,
@@ -59,6 +67,10 @@ pub struct AppState {
     pub machine_guid: String,
     /// Parental lock: unlocked for this session?
     pub parental_unlocked: Mutex<bool>,
+    /// Multiscreen panes by window label.
+    pub panes: Mutex<std::collections::HashMap<String, Pane>>,
+    /// Mini (PiP) mode active?
+    pub mini_mode: Mutex<bool>,
 }
 
 impl AppState {
@@ -76,6 +88,8 @@ impl AppState {
             playback: Mutex::new(playback),
             machine_guid: app_core::license::machine_guid(),
             parental_unlocked: Mutex::new(false),
+            panes: Mutex::new(Default::default()),
+            mini_mode: Mutex::new(false),
         }
     }
 }

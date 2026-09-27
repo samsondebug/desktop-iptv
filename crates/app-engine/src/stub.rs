@@ -105,6 +105,26 @@ impl PlayerEngine for StubEngine {
         Ok(())
     }
 
+    fn set_record(&self, path: Option<&str>) -> Result<()> {
+        tracing::info!(?path, "[stub] stream-record");
+        let mut props = self.props.lock().unwrap();
+        match path {
+            Some(p) => {
+                // Write a small placeholder so the DVR flow can be exercised without libmpv.
+                let _ = std::fs::write(p, b"stub-recording");
+                props.insert("stream-record".into(), p.into());
+            }
+            None => {
+                props.remove("stream-record");
+            }
+        }
+        Ok(())
+    }
+
+    fn record_path(&self) -> Option<String> {
+        self.props.lock().unwrap().get("stream-record").cloned()
+    }
+
     fn stop(&self) -> Result<()> {
         tracing::info!("[stub] stop");
         *self.telemetry.lock().unwrap() =

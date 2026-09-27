@@ -27,6 +27,13 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
   const [width, setWidth] = useState(900);
   const [progress, setProgress] = useState<Map<string, number>>(new Map());
   const [cont, setCont] = useState<ContinueItem[]>([]);
+  const [menu, setMenu] = useState<{ x: number; y: number; v: VodRecord } | null>(null);
+  const pushToast = useApp((s) => s.pushToast);
+  useEffect(() => {
+    const close = () => setMenu(null);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
 
   useEffect(() => {
     const el = parentRef.current;
@@ -117,6 +124,34 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
         />
       </div>
 
+      {menu && (
+        <div className="fixed z-50 panel rounded-md py-1" style={{ left: menu.x, top: menu.y, minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
+          <div className="px-3 py-1 truncate" style={{ color: "var(--text-faint)", fontSize: 11 }}>
+            {menu.v.title}
+          </div>
+          {[
+            { label: menu.v.kind === "series" ? "Episodes…" : "▶ Play", run: () => open(menu.v) },
+            ...(menu.v.kind === "movie" ? [{ label: "▶ Play from start", run: () => void playVod(menu.v, true) }] : []),
+            ...(menu.v.kind === "movie"
+              ? [
+                  {
+                    label: "⤓ Download (PRO)",
+                    run: () =>
+                      void ipc
+                        .downloadItem("vod", menu.v.id)
+                        .then((d) => pushToast({ level: "info", title: "Download queued", body: d.path }))
+                        .catch((e) => pushToast({ level: "error", title: "Download refused", body: String(e) })),
+                  },
+                ]
+              : []),
+            { label: "↺ Clear progress", run: () => void ipc.clearProgress("vod", menu.v.id).then(() => useApp.setState((s) => ({ listVersion: s.listVersion + 1 }))) },
+          ].map((m) => (
+            <div key={m.label} className="px-3 py-1.5 cursor-default" style={{ fontSize: 12.5 }} onClick={() => { m.run(); setMenu(null); }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elev-2)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+              {m.label}
+            </div>
+          ))}
+        </div>
+      )}
       {showContinue ? (
         <div ref={parentRef} className="flex-1 min-h-0 overflow-auto p-2">
           <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
@@ -141,7 +176,17 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
                     if (idx >= src.count) return <div key={c} />;
                     const v = src.row(idx);
                     return v ? (
-                      <Poster key={v.id} v={v} selected={idx === selectedIndex} pct={progress.get(`vod:${v.id}`)} onOpen={() => { setUi({ selectedIndex: idx }); open(v); }} />
+                      <Poster
+                        key={v.id}
+                        v={v}
+                        selected={idx === selectedIndex}
+                        pct={progress.get(`vod:${v.id}`)}
+                        onOpen={() => {
+                          setUi({ selectedIndex: idx });
+                          open(v);
+                        }}
+                        onMenu={(x, y) => setMenu({ x, y, v })}
+                      />
                     ) : (
                       <div key={c} className="poster">
                         <div className="art" />
@@ -166,10 +211,18 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
   );
 }
 
-function Poster({ v, selected, pct, onOpen }: { v: VodRecord; selected: boolean; pct?: number; onOpen: () => void }) {
+function Poster({ v, selected, pct, onOpen, onMenu }: { v: VodRecord; selected: boolean; pct?: number; onOpen: () => void; onMenu: (x: number, y: number) => void }) {
   const [ok, setOk] = useState(!!v.poster);
   return (
-    <div className={"poster" + (selected ? " selected" : "")} onClick={onOpen} title={v.description ?? v.title}>
+    <div
+      className={"poster" + (selected ? " selected" : "")}
+      onClick={onOpen}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
+      title={v.description ?? v.title}
+    >
       <div className="art-wrap">
         {ok && v.poster ? <img className="art" src={v.poster} loading="lazy" alt="" draggable={false} onError={() => setOk(false)} /> : <div className="art flex items-center justify-center" style={{ color: "var(--text-faint)", fontSize: 11, padding: 8, textAlign: "center" }}>{v.title}</div>}
         {pct != null && pct > 0 && (

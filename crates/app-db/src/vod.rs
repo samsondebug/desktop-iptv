@@ -190,7 +190,9 @@ impl Db {
         self.with_read(|c| {
             Ok(match category {
                 Some(g) => c.query_row(
-                    &format!("SELECT COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 AND category = ?3{hidden}"),
+                    &format!(
+                        "SELECT COUNT(*) FROM vod_items WHERE playlist_id = ?1 AND kind = ?2 AND category = ?3{hidden}"
+                    ),
                     params![playlist_id, kind, g],
                     |r| r.get(0),
                 )?,

@@ -21,6 +21,9 @@ export default function Rail() {
   const setUi = useApp((s) => s.setUi);
   const vodCategory = useApp((s) => s.ui.vodCategory);
   const refreshParental = useApp((s) => s.refreshParental);
+  const activeRecordings = useApp((s) => s.activeRecordings);
+  const panes = useApp((s) => s.panes);
+  const openPane = useApp((s) => s.openPane);
   const [filter, setFilter] = useState("");
   const [vodGroups, setVodGroups] = useState<VodGroup[]>([]);
   const [vodTotal, setVodTotal] = useState(0);
@@ -50,7 +53,8 @@ export default function Rail() {
             <RailItem label="★ Favorites" count={favorites.length} active={same(rail, { kind: "favorites" })} onClick={() => selectRail({ kind: "favorites" })} />
             <RailItem label="◷ Recently viewed" count={recents.length} active={same(rail, { kind: "recents" })} onClick={() => selectRail({ kind: "recents" })} />
             <RailItem label="All channels" count={total} active={same(rail, { kind: "all" })} onClick={() => selectRail({ kind: "all" })} />
-            <RailItem label="● Recordings" count={null} active={false} onClick={() => setUi({ settingsOpen: true, settingsTab: "playlists" })} muted />
+            <RailItem label="● Recordings & downloads" count={activeRecordings || null} active={false} onClick={() => setUi({ libraryOpen: true })} />
+            <RailItem label="⊞ Multiscreen pane" count={panes.length || null} active={false} onClick={() => void openPane(null)} muted />
           </>
         ) : (
           <>

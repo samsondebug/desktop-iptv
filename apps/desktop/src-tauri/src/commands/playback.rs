@@ -41,7 +41,19 @@ pub fn emit_playback(app: &AppHandle, state: &AppState) {
     let _ = app.emit(EV_PLAYBACK, playback_state(state));
 }
 
-pub fn do_load(state: &AppState, url: &str, profile: ProfileMode, item: PlaybackItem, start_secs: Option<f64>) -> CmdResult<()> {
+pub fn do_load(
+    state: &AppState,
+    url: &str,
+    profile: ProfileMode,
+    item: PlaybackItem,
+    start_secs: Option<f64>,
+) -> CmdResult<()> {
+    // A tap recording follows the engine's stream: hand it its own connection first.
+    if state.engine.record_path().is_some() {
+        if let Some(app) = crate::APP.get() {
+            crate::dvr::on_stream_change(app, state);
+        }
+    }
     let boost = {
         let pb = state.playback.lock().unwrap();
         if pb.muted {
@@ -100,7 +112,13 @@ pub fn play_episode(state: State<'_, AppState>, episode_id: i64, from_start: boo
     } else {
         state.db.get_progress("episode", episode_id).map_err(err)?.filter(|p| !p.finished).map(|p| p.position_s as f64)
     };
-    do_load(&state, &e.stream_url, ProfileMode::Stable, PlaybackItem::Episode { id: episode_id, series_id: e.series_id }, start)?;
+    do_load(
+        &state,
+        &e.stream_url,
+        ProfileMode::Stable,
+        PlaybackItem::Episode { id: episode_id, series_id: e.series_id },
+        start,
+    )?;
     Ok(playback_state(&state))
 }
 
@@ -204,7 +222,15 @@ pub fn seek(state: State<'_, AppState>, secs: f64) -> CmdResult<()> {
 /// The UI reports where the player pane sits (CSS px, relative to the webview) and the webview
 /// size; the engine turns that into `video-margin-ratio-*` so video stays inside the pane.
 #[tauri::command]
-pub fn set_video_rect(state: State<'_, AppState>, x: f32, y: f32, w: f32, h: f32, win_w: f32, win_h: f32) -> CmdResult<()> {
+pub fn set_video_rect(
+    state: State<'_, AppState>,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    win_w: f32,
+    win_h: f32,
+) -> CmdResult<()> {
     if win_w <= 0.0 || win_h <= 0.0 || w <= 0.0 || h <= 0.0 {
         return Ok(());
     }
@@ -228,7 +254,8 @@ pub fn engine_get_property(state: State<'_, AppState>, name: String) -> CmdResul
 /// Advanced panel. A small denylist keeps the UI from re-pointing the engine at a file/URL.
 #[tauri::command]
 pub fn engine_set_property(state: State<'_, AppState>, name: String, value: String) -> CmdResult<()> {
-    const DENY: &[&str] = &["wid", "vo", "input-ipc-server", "script", "scripts", "config-dir", "ytdl", "load-scripts", "stream-record"];
+    const DENY: &[&str] =
+        &["wid", "vo", "input-ipc-server", "script", "scripts", "config-dir", "ytdl", "load-scripts", "stream-record"];
     if DENY.contains(&name.as_str()) || name.starts_with("input-") {
         return Err(format!("property '{name}' cannot be changed from the UI"));
     }
@@ -237,8 +264,19 @@ pub fn engine_set_property(state: State<'_, AppState>, name: String, value: Stri
 
 #[tauri::command]
 pub fn engine_command(state: State<'_, AppState>, args: Vec<String>) -> CmdResult<()> {
-    const ALLOW: &[&str] =
-        &["seek", "frame-step", "cycle", "set", "add", "multiply", "show-text", "stop", "screenshot-to-file", "audio-reload", "video-reload"];
+    const ALLOW: &[&str] = &[
+        "seek",
+        "frame-step",
+        "cycle",
+        "set",
+        "add",
+        "multiply",
+        "show-text",
+        "stop",
+        "screenshot-to-file",
+        "audio-reload",
+        "video-reload",
+    ];
     let first = args.first().map(String::as_str).unwrap_or("");
     if !ALLOW.contains(&first) {
         return Err(format!("command '{first}' is not allowed from the UI"));

@@ -26,7 +26,8 @@ pub struct EpgGridRow {
 
 /// Resolve the effective tvg-id per channel: manual override → channel.tvg_id.
 fn effective_ids(state: &AppState, playlist_id: i64, channel_ids: &[i64]) -> CmdResult<Vec<(i64, Option<String>)>> {
-    let overrides: HashMap<i64, String> = state.db.epg_overrides_for_playlist(playlist_id).map_err(err)?.into_iter().collect();
+    let overrides: HashMap<i64, String> =
+        state.db.epg_overrides_for_playlist(playlist_id).map_err(err)?.into_iter().collect();
     let mut out = Vec::with_capacity(channel_ids.len());
     for &id in channel_ids.iter().take(500) {
         let tvg = match overrides.get(&id) {
@@ -44,7 +45,8 @@ pub fn epg_grid(state: State<'_, AppState>, req: EpgGridRequest) -> CmdResult<Ve
     let offset = state.db.epg_offset_min(req.playlist_id).map_err(err)? as i64 * 60;
     let ids = effective_ids(&state, req.playlist_id, &req.channel_ids)?;
     let tvg_ids: Vec<&str> = ids.iter().filter_map(|(_, t)| t.as_deref()).collect();
-    let progs = state.db.programmes_range(req.playlist_id, &tvg_ids, req.from - offset, req.to - offset).map_err(err)?;
+    let progs =
+        state.db.programmes_range(req.playlist_id, &tvg_ids, req.from - offset, req.to - offset).map_err(err)?;
     let mut by_tvg: HashMap<&str, Vec<Programme>> = HashMap::new();
     for p in &progs {
         by_tvg.entry(p.channel_tvg_id.as_str()).or_default().push(Programme {

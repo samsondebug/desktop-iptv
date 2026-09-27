@@ -1,16 +1,20 @@
 //! Tauri commands. Every error string passes through `redact` before it reaches the UI.
 
 pub mod catalog;
+pub mod dvr;
 pub mod epg;
 pub mod parental;
 pub mod playback;
 pub mod vod;
+pub mod windows;
 
 pub use catalog::*;
+pub use dvr::*;
 pub use epg::*;
 pub use parental::*;
 pub use playback::*;
 pub use vod::*;
+pub use windows::*;
 
 use crate::state::AppState;
 use app_core::redact::redact;

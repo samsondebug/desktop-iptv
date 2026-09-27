@@ -11,9 +11,22 @@ use tauri::{AppHandle, State};
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AddPlaylistSource {
-    M3uUrl { url: String, user_agent: Option<String>, epg_url: Option<String> },
-    M3uFile { path: String, epg_url: Option<String> },
-    Xtream { base_url: String, username: String, password: String, stream_format: Option<String>, user_agent: Option<String> },
+    M3uUrl {
+        url: String,
+        user_agent: Option<String>,
+        epg_url: Option<String>,
+    },
+    M3uFile {
+        path: String,
+        epg_url: Option<String>,
+    },
+    Xtream {
+        base_url: String,
+        username: String,
+        password: String,
+        stream_format: Option<String>,
+        user_agent: Option<String>,
+    },
 }
 
 fn host_of(url: &str) -> String {
@@ -21,7 +34,12 @@ fn host_of(url: &str) -> String {
 }
 
 #[tauri::command]
-pub fn add_playlist(app: AppHandle, state: State<'_, AppState>, name: String, source: AddPlaylistSource) -> CmdResult<i64> {
+pub fn add_playlist(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+    source: AddPlaylistSource,
+) -> CmdResult<i64> {
     let name = name.trim();
     // Free tier after the trial: one playlist only (CLAUDE.md §10).
     let lic = license_state(&state)?;
@@ -75,7 +93,8 @@ pub fn add_playlist(app: AppHandle, state: State<'_, AppState>, name: String, so
             )
         }
         AddPlaylistSource::Xtream { base_url, username, password, stream_format, user_agent } => {
-            let client = app_net::adapters::XtreamClient::new(base_url, username, password, user_agent.as_deref()).map_err(err)?;
+            let client = app_net::adapters::XtreamClient::new(base_url, username, password, user_agent.as_deref())
+                .map_err(err)?;
             if username.trim().is_empty() || password.is_empty() {
                 return Err("Username and password are required".into());
             }
@@ -136,7 +155,12 @@ pub fn playlist_meta(state: State<'_, AppState>, playlist_id: i64) -> CmdResult<
 
 /// Xtream: switch live URLs between .ts and .m3u8 (takes effect on the next refresh).
 #[tauri::command]
-pub fn set_stream_format(app: AppHandle, state: State<'_, AppState>, playlist_id: i64, format: String) -> CmdResult<()> {
+pub fn set_stream_format(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    playlist_id: i64,
+    format: String,
+) -> CmdResult<()> {
     state.db.set_playlist_stream_format(playlist_id, &format).map_err(err)?;
     spawn_sync(app, state.db.clone(), playlist_id, SyncScope::Full);
     Ok(())

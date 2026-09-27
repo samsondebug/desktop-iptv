@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 fn make_ts(path: &std::path::Path) -> bool {
-    // 12 s of MPEG-TS / H.264 test pattern — the same container as a typical IPTV live stream.
+    // 90 s of MPEG-TS / H.264 test pattern — the same container as a typical IPTV live stream.
     let st = std::process::Command::new("ffmpeg")
         .args([
             "-y",
@@ -17,11 +17,11 @@ fn make_ts(path: &std::path::Path) -> bool {
             "-f",
             "lavfi",
             "-i",
-            "testsrc=duration=12:size=320x240:rate=25",
+            "testsrc=duration=90:size=320x240:rate=25",
             "-f",
             "lavfi",
             "-i",
-            "sine=frequency=440:duration=12",
+            "sine=frequency=440:duration=90",
             "-c:v",
             "libx264",
             "-preset",
@@ -114,6 +114,23 @@ fn plays_a_mpegts_file_and_reports_zap_and_telemetry() {
         }
     }
     assert!(second.is_some(), "second loadfile replace did not restart playback");
+
+    // Single-connection record tap: stream-record writes the raw stream while playing. Use the
+    // low-latency profile so the demuxer has not already cached the whole file.
+    engine.load(ts.to_str().unwrap(), ProfileMode::LowLatency, 120, None).unwrap();
+    std::thread::sleep(Duration::from_millis(600));
+    let rec = dir.join("tap.ts");
+    let _ = std::fs::remove_file(&rec);
+    engine.set_record(rec.to_str()).unwrap();
+    assert_eq!(engine.record_path().as_deref(), rec.to_str());
+    std::thread::sleep(Duration::from_millis(1500));
+    engine.set_record(None).unwrap();
+    assert!(engine.record_path().is_none());
+    // The demuxer thread closes the muxer asynchronously; give it a moment before measuring.
+    std::thread::sleep(Duration::from_millis(700));
+    let size = std::fs::metadata(&rec).map(|m| m.len()).unwrap_or(0);
+    eprintln!("stream-record wrote {size} bytes");
+    assert!(size > 10_000, "stream-record produced only {size} bytes");
     assert_eq!(engine.get_property("volume").unwrap().unwrap().parse::<f64>().unwrap().round() as i64, 120);
     engine.shutdown();
 }

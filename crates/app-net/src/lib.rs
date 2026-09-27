@@ -10,10 +10,12 @@
 //! * Every error string that can reach the UI is passed through [`app_core::redact::redact`].
 
 pub mod adapters;
+pub mod downloader;
 pub mod http;
 pub mod importer;
 pub mod m3u;
 pub mod preflight;
+pub mod recorder;
 pub mod xmltv;
 
 pub use http::HttpClient;
