@@ -44,13 +44,49 @@ with a `-` in it (e.g. `v0.2.0-beta.1`) is published as a pre-release, which `la
 Manual runs (`workflow_dispatch`) build without publishing and attach the bundles as workflow
 artifacts — useful to test a build on another machine first.
 
+## Code signing (Windows) — Azure Artifact Signing
+
+`release.yml` signs the exe and the installers automatically once five repository secrets exist;
+without them it builds unsigned. Artifact Signing (Microsoft's renamed Trusted Signing) is a
+managed CA: Basic tier ≈ US$10/month for 5,000 signatures, no key to hold, certificates rotate
+every three days and are timestamped (`timestamp.acs.microsoft.com`) so signatures stay valid.
+
+Getting the account (individual developer, must be in the US or Canada):
+
+1. Azure subscription on **Pay-As-You-Go** (free/trial subscriptions are refused). The billing
+   account must be of type *Individual* and its legal name + sold-to address must match the
+   government ID used later — fix that under Cost Management + Billing before step 4.
+2. Subscription → Resource providers → register `Microsoft.CodeSigning`.
+3. Create an **Artifact Signing account** (portal: "Artifact Signing Accounts" → Create): new
+   resource group, a globally unique name, region (East US = `https://eus.codesigning.azure.net`),
+   pricing tier **Basic**. Billing starts at creation and is not pro-rated.
+4. Account → Access control (IAM) → assign yourself **Artifact Signing Identity Verifier**, then
+   Identity validations → *Individual* → New Identity → Public. Pick the billing account; the form
+   fills itself. When it flips to *Action Required*, follow the link: email PIN, phone, then AU10TIX
+   scans your driver's licence/passport + a selfie on your phone, and Microsoft Authenticator
+   stores a Verified ID you present back to the portal. Usually minutes; up to 20 business days if
+   documents are requested.
+5. Certificate profiles → Create → **Public Trust**, pick the validated identity. This is the
+   `AZURE_SIGNING_PROFILE` name; the account name is `AZURE_SIGNING_ACCOUNT`.
+6. A service principal for CI: Microsoft Entra ID → App registrations → New (any name) → note the
+   *Application (client) ID* and *Directory (tenant) ID*; Certificates & secrets → New client
+   secret → copy the value. On the Artifact Signing account → IAM → assign that app
+   **Artifact Signing Certificate Profile Signer**.
+7. GitHub → Settings → Secrets → Actions: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+   `AZURE_CLIENT_SECRET`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` (and
+   `AZURE_SIGNING_ENDPOINT` if the region is not East US). Next tag → signed installers.
+
+Locally, the same signing works with `cargo install artifact-signing-cli`, the three `AZURE_*` env
+vars, and `tauri build --config '{"bundle":{"windows":{"signCommand":"artifact-signing-cli -e <endpoint> -a <account> -c <profile> -d desktop-iptv %1"}}}'`.
+
+SmartScreen reputation is per certificate and builds with downloads; a freshly issued certificate
+can still show the "More info → Run anyway" prompt for the first days. Submitting a signed build
+at microsoft.com/wdsi speeds that up.
+
 ## What users see until the builds are code-signed
 
 * **Windows**: SmartScreen "Windows protected your PC" → *More info → Run anyway*; Edge/Chrome may
-  flag the download as uncommon → *Keep*. Fix: sign the installer. Cheapest credible route is Azure
-  Trusted Signing (identity validation + ~US$10/month); an OV certificate from a CA works too. Tauri
-  takes either through `bundle.windows.signCommand` / `certificateThumbprint` — wire it in
-  `release.yml` next to the Apple secrets.
+  flag the download as uncommon → *Keep*. Fix: the section above.
 * **macOS**: "cannot be opened because the developer cannot be verified" → System Settings →
   Privacy & Security → *Open Anyway*. Fix: an Apple Developer account (US$99/year); set the
   `APPLE_*` secrets already referenced in `release.yml` and tauri-action signs + notarizes.

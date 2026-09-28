@@ -103,6 +103,35 @@ jobs:
             exit 1
           fi
 
+      # Windows code signing through Azure Artifact Signing (formerly Trusted Signing). Only active
+      # when the AZURE_* secrets exist (docs/RELEASING.md § Code signing); otherwise the build is
+      # unsigned and SmartScreen warns once. Tauri signs the exe and the NSIS/MSI installers
+      # through bundle.windows.signCommand, injected here as a config overlay so the committed
+      # tauri.conf.json stays buildable on machines without the CLI.
+      - name: Windows code signing (Azure Artifact Signing)
+        if: runner.os == 'Windows'
+        id: acs
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          if (-not $env:AZURE_CLIENT_ID -or -not $env:AZURE_SIGNING_ACCOUNT -or -not $env:AZURE_SIGNING_PROFILE) {
+            Write-Host "AZURE_* secrets not set - building unsigned."
+            "args=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+          $endpoint = if ($env:AZURE_SIGNING_ENDPOINT) { $env:AZURE_SIGNING_ENDPOINT } else { "https://eus.codesigning.azure.net" }
+          cargo install artifact-signing-cli --locked
+          $cmd = "artifact-signing-cli -e $endpoint -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d desktop-iptv %1"
+          $overlay = @{ bundle = @{ windows = @{ signCommand = $cmd } } } | ConvertTo-Json -Depth 5 -Compress
+          $path = Join-Path $env:RUNNER_TEMP "sign.conf.json"
+          Set-Content -Path $path -Value $overlay -Encoding utf8
+          Write-Host "Signing enabled: $cmd"
+          "args=--config $path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
       - name: Build + package
         uses: tauri-apps/tauri-action@v0
         env:
@@ -110,7 +139,11 @@ jobs:
           # Updater artifact signing (required — see above):
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Optional code signing (leave unset for unsigned builds):
+          # Windows code signing service principal (used by artifact-signing-cli when set):
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          # Optional macOS signing/notarization (leave unset for unsigned builds):
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -124,7 +157,7 @@ jobs:
           releaseBody: |
             Player-only IPTV client. This app does not provide channels, playlists, or stream URLs — you bring your own source. We do not support illegal services.
 
-            * **Windows** — `desktop-iptv_<version>_x64-setup.exe` (bundles libmpv; installs WebView2 if missing). The build is not code-signed yet, so SmartScreen shows "Windows protected your PC" once: click *More info → Run anyway*.
+            * **Windows** — `desktop-iptv_<version>_x64-setup.exe` (bundles libmpv; installs WebView2 if missing). If SmartScreen shows "Windows protected your PC", click *More info → Run anyway* (happens while a new signing certificate is still building reputation, or on unsigned builds).
             * **macOS** — `.dmg` for Apple Silicon (`aarch64`) and Intel (`x64`). Unsigned: after copying to Applications, open it once from System Settings → Privacy & Security → *Open Anyway*.
             * **Linux** — `.deb` (depends on libmpv2) or `.AppImage` (install libmpv2 with your package manager).
 
@@ -132,7 +165,7 @@ jobs:
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           includeUpdaterJson: true
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ steps.acs.outputs.args }}
 
       - name: Upload bundles (manual runs)
         if: github.ref_type != 'tag'
