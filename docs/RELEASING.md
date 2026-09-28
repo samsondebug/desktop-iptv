@@ -11,6 +11,25 @@ How a version gets from `main` to a link friends can click.
 | `site/index.html` | repo | The download page. Reads the latest release from the GitHub API, picks the visitor's OS, shows the legal block and install notes. Static — host it anywhere (Pages, Vercel, your own domain). |
 | Updater | `tauri-plugin-updater`, `src/lib/updater.ts` | Installed copies fetch `https://github.com/samsondebug/desktop-iptv/releases/latest/download/latest.json` 12 s after start and every 6 h, verify the minisign signature against `plugins.updater.pubkey` in `tauri.conf.json`, and offer "Install & restart" (Settings → About has a manual check). |
 
+## What exists (set up 2026-09-28)
+
+| Thing | Value |
+|---|---|
+| GitHub repo | `samsondebug/desktop-iptv` (public) — Pages source: GitHub Actions |
+| Download page | https://samsondebug.github.io/desktop-iptv/ |
+| Azure subscription | `desktop-iptv` (pay-as-you-go, MCA billing account "David Krouskoff") |
+| Artifact Signing account | `krouskoffsigning`, resource group `desktop-iptv-signing`, East US, Basic — endpoint `https://eus.codesigning.azure.net` |
+| Identity validation | Individual, Public — `CN=David Krouskoff, L=Austin, S=TX, C=US` |
+| Certificate profile | `desktop-iptv-public` (Public Trust) |
+| CI service principal | Entra app registration `desktop-iptv-ci` — role *Artifact Signing Certificate Profile Signer* on the account; client secret expires 2028-09-28 |
+| GitHub secrets | `TAURI_SIGNING_PRIVATE_KEY`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_PROFILE` |
+
+Gotchas met on the way: a Free Trial subscription that was "upgraded" keeps `quotaId FreeTrial_…`
+for up to a day and Artifact Signing rejects it — a fresh subscription under the same billing
+profile is pay-as-you-go immediately. GitHub Actions on a private repo needs billing set up on the
+account; public repos build for free. `actions/configure-pages` cannot create the Pages site with
+`GITHUB_TOKEN` — set Settings → Pages → Source → *GitHub Actions* once by hand.
+
 ## One-time setup (already done except the secret)
 
 1. **Updater keypair.** Generated with `npx tauri signer generate`. The public key is committed in
