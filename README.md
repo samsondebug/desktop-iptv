@@ -22,6 +22,17 @@ crates/app-engine   libmpv controller (dynamic FFI), profiles, telemetry, stub f
 apps/desktop        Tauri app (src-tauri = thin command layer) + React frontend
 ```
 
+## Features
+
+Live TV + 8-hour EPG grid on one canvas · Xtream Codes, M3U/M3U8 (URL or file) and experimental
+Stalker/MAC portals · Movies & Series with resume, continue-watching and auto-next · favorites,
+recents, groups, instant FTS search across 40k+ rows · Low-latency / Stable profiles, hwdec
+`auto-safe`, HUD with codec/bitrate/fps/cache/zap · recording (single-connection tap, scheduled from
+the guide, 10-min overrun) · VOD downloads with resume · mini/PiP window · multiscreen panes with an
+audio lock · parental PIN + keyword filter · themes as CSS tokens · encrypted backup/restore ·
+Diagnostics: HTTP trace, headless stream probe, source checks, one-click redacted report · 72-hour
+trial, then a one-time PRO unlock.
+
 ## Build
 
 Prerequisites: Rust ≥ 1.80, Node ≥ 20, and the Tauri v2 platform deps
@@ -41,6 +52,13 @@ cargo test -p app-core -p app-db -p app-net -p app-engine
 cargo run --release -p app-net --example bench_import -- 20000   # import + search benchmark
 ```
 
+Local end-to-end without a provider: `python3 fixtures/mock_xtream.py 8090 /path/to/any.ts` serves a
+synthetic Xtream panel (user/pass, 1000 channels, EPG, VOD) and a Stalker portal
+(MAC `00:1A:79:12:34:56`) that both play the given MPEG-TS file as a paced live stream.
+
+Releases: push a `v*` tag — `.github/workflows/release.yml` builds Windows (NSIS/MSI, bundles
+libmpv), macOS (DMG, bundles libmpv from Homebrew) and Linux (deb/AppImage) installers.
+
 ### libmpv
 
 The engine loads libmpv **at runtime** (no import library needed), searching
@@ -49,7 +67,7 @@ Without it the app starts with a stub engine (no video) so the catalog UI keeps 
 
 | OS      | Get it                                                                                   |
 |---------|------------------------------------------------------------------------------------------|
-| Windows | `libmpv-2.dll` from a static mpv-dev build (e.g. zhongfly/mpv-winbuild `mpv-dev-lgpl-x86_64-*.7z`) → `apps/desktop/src-tauri/lib/` |
+| Windows | `scripts/fetch-libmpv.ps1` (downloads `libmpv-2.dll` from the shinchiro mpv-winbuild releases into `apps/desktop/src-tauri/lib/`, bundled as a resource) |
 | macOS   | `brew install mpv` (found in `/opt/homebrew/lib`)                                        |
 | Linux   | `apt install libmpv2` (Debian/Ubuntu) or your distro's libmpv                            |
 
@@ -57,8 +75,10 @@ See [`docs/ENGINE.md`](./docs/ENGINE.md) for how the native surface embed works 
 
 ## Keyboard
 
-`/` search · `j`/`k` or `↑`/`↓` move · `Enter` play · `f` fullscreen (also double-click) · `m` mute ·
-`space` pause · `p` toggle Low latency / Stable · `Shift+S` settings · `Shift+D` diagnostics · `Esc` back.
+`/` search · `j`/`k` or `↑`/`↓` move · `Enter` play · `←`/`→` guide window (live) or seek ±10 s (VOD) ·
+`f` fullscreen (also double-click) · `m` mute · `space` pause · `p` toggle Low latency / Stable ·
+`r` record the current channel · `i` mini player · `1`/`2`/`3` tabs · `Shift+S` settings ·
+`Shift+D` diagnostics · `Esc` back.
 
 ## License
 

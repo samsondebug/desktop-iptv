@@ -74,3 +74,22 @@ plays it with `vo=null`/`ao=null`, and asserts: `PlaybackStarted` with `zap_ms <
 telemetry with an H.264 codec name, a profile switch plus a second `loadfile replace`, and a
 volume round-trip. It passes on Linux with `libmpv2` installed (measured zap ≈ 15–20 ms on a
 local file) and skips cleanly where libmpv or ffmpeg is absent.
+
+## Record tap, probe and panes (days 51–90)
+
+* **Record tap** — `PlayerEngine::set_record(Some(path))` sets mpv's `stream-record`, which
+  writes the raw demuxed stream (MPEG-TS stays MPEG-TS) from the *existing* connection. No second
+  HTTP GET. Verified in `tests/headless_mpv.rs` (file grows >10 KB while playing). On zap the Tauri
+  layer (`dvr::on_stream_change`) clears the tap and continues the job on its own raw GET
+  (`app_net::recorder`) appending to the same file — the stream is the same bytes, so the file
+  stays a valid TS. HLS (`.m3u8`) jobs use a second, headless engine instead of a raw GET.
+* **Headless probe** — `app_engine::probe::probe_stream(opts, url, timeout)` creates a throw-away
+  engine with `wid = None` (→ `vo=null`, `ao=null`, `force-window=no`), loads the URL with the
+  same profile/UA/hwdec the player would use, waits for `PLAYBACK_RESTART` or `END_FILE`, then
+  reads `file-format`, `video-format`, `audio-codec-name`, `video-params/w|h`, `container-fps`,
+  `hwdec-current`, `demuxer-cache-duration`. Errors and log lines are redacted. One probe at a
+  time (Tauri command guards with an atomic).
+* **Panes** — every extra window (`index.html?pane=<label>`) gets its own `MpvEngine` bound to
+  that window's native handle with `hw_decoding = auto-copy-safe` (copy-back survives iGPUs and
+  avoids zero-copy contention, CLAUDE.md §6.5). Only one engine is unmuted at a time
+  (`pane_audio`). Closing the window shuts the engine down.

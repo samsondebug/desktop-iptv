@@ -2,7 +2,7 @@
 
 **Status:** FINAL. This file absorbs all research passes, the module-level technical spec, the Zero-Class architecture deck, product verification notes, and the implementation playbook.
 
-**Repo state:** days 1–14 scaffolded — see `docs/STATUS.md` (exit tests, follow-ups), `docs/ENGINE.md` (embed/profiles/telemetry) and `docs/TEARDOWN-NOTES.md`. Two deliberate deviations from this file are recorded in STATUS.md: FTS triggers key on a derived rowid (the `WHERE item_id = old.id` form is O(n) per row), and libmpv is loaded at runtime via `libloading` instead of link-time `libmpv-sys` (no import library needed; stub fallback when the DLL is absent).
+**Repo state:** all 90 days implemented (v0.1.0 candidate) — see `docs/STATUS.md` (exit tests per phase, deviations, what to verify on real hardware), `docs/ENGINE.md` (embed/profiles/telemetry) and `docs/TEARDOWN-NOTES.md`. Deliberate deviations from this file are recorded in STATUS.md: FTS triggers key on a derived rowid (the `WHERE item_id = old.id` form is O(n) per row); libmpv is loaded at runtime via `libloading` instead of link-time `libmpv-sys`; the record tee uses mpv's `stream-record` on the playing connection with a raw-GET continuation on zap; playlist passwords live in the SQLite `pass` column (not the keychain yet).
 
 **How to use:** Put this file at the repo root as `CLAUDE.md`. Read it once before scaffolding. Do not ask for architecture decisions that this file already made. If two sections conflict, win order is: legal block → never put frames through JS → SQLite-not-JSON → this file’s 90-day order.
 
