@@ -1,0 +1,93 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/download/windows",
+      "destination": "/api/download?os=windows"
+    },
+    {
+      "source": "/download/windows/",
+      "destination": "/api/download?os=windows"
+    },
+    {
+      "source": "/download/windows-msi",
+      "destination": "/api/download?os=windows-msi"
+    },
+    {
+      "source": "/download/windows-msi/",
+      "destination": "/api/download?os=windows-msi"
+    },
+    {
+      "source": "/download/mac",
+      "destination": "/api/download?os=mac"
+    },
+    {
+      "source": "/download/mac/",
+      "destination": "/api/download?os=mac"
+    },
+    {
+      "source": "/download/macos",
+      "destination": "/api/download?os=mac"
+    },
+    {
+      "source": "/download/macos/",
+      "destination": "/api/download?os=mac"
+    },
+    {
+      "source": "/download/mac-intel",
+      "destination": "/api/download?os=mac-intel"
+    },
+    {
+      "source": "/download/mac-intel/",
+      "destination": "/api/download?os=mac-intel"
+    },
+    {
+      "source": "/download/linux",
+      "destination": "/api/download?os=linux"
+    },
+    {
+      "source": "/download/linux/",
+      "destination": "/api/download?os=linux"
+    },
+    {
+      "source": "/download/linux-deb",
+      "destination": "/api/download?os=linux-deb"
+    },
+    {
+      "source": "/download/linux-deb/",
+      "destination": "/api/download?os=linux-deb"
+    },
+    {
+      "source": "/download/linux-rpm",
+      "destination": "/api/download?os=linux-rpm"
+    },
+    {
+      "source": "/download/linux-rpm/",
+      "destination": "/api/download?os=linux-rpm"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400, stale-while-revalidate=604800"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SKTV FAQ</title>
+<meta name="description" content="Answers about SKTV: sources, platforms, SmartScreen and Gatekeeper prompts, buffering, recording, updates and privacy.">
+<meta property="og:title" content="SKTV FAQ">
+<meta property="og:description" content="Answers about SKTV: sources, platforms, SmartScreen and Gatekeeper prompts, buffering, recording, updates and privacy.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0b0d11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1115'/%3E%3Cpath d='M22 15v28l24-14z' fill='%2359c4ff'/%3E%3Crect x='16' y='48' width='27' height='3.5' rx='1.75' fill='%23fff'/%3E%3Crect x='16' y='54' width='19' height='3.5' rx='1.75' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<div class="nav"><div class="wrap">
+  <a class="logo" href=""><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1115"/><path d="M22 15v28l24-14z" fill="#59c4ff"/><rect x="16" y="48" width="27" height="3.5" rx="1.75" fill="#fff"/><rect x="16" y="54" width="19" height="3.5" rx="1.75" fill="#fff"/></svg>SKTV</a>
+  <div class="links">
+    <a href="#features" >Features</a>
+    <a href="guides/" >Guides</a>
+    <a href="faq.html" class="on">FAQ</a>
+    <a href="https://github.com/samsondebug/desktop-iptv" rel="noopener">GitHub</a>
+    <a class="btn primary cta" href="download/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>
+  </div>
+</div></div>
+<div class="wrap">
+
+<article class="prose">
+  <h1>FAQ</h1>
+  <details open><summary>Does SKTV come with channels?</summary><p>No. SKTV is a player only. It ships with no channels, playlists or stream links. You add a source from a provider you already have — Xtream login, M3U link, or Stalker portal. This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.</p></details>
+  <details><summary>Is it free?</summary><p>Yes — every feature, no trial, no account, nothing collected.</p></details>
+  <details><summary>Which platforms?</summary><p>Windows 10/11 (64-bit), macOS 11+ on Apple Silicon and Intel, and Linux (.deb, .AppImage, .rpm). Not iOS, Android or smart TVs — SKTV is a desktop player by design.</p></details>
+  <details><summary>Windows says "Windows protected your PC".</summary><p>The installer is signed by David Krouskoff through Microsoft's signing service, but a new certificate has no reputation with SmartScreen yet. Click <em>More info</em> → <em>Run anyway</em>. It stops appearing once enough people have installed it.</p></details>
+  <details><summary>macOS says it can't verify the developer.</summary><p>The Mac build isn't notarized with Apple yet. Open <em>System Settings → Privacy &amp; Security</em>, scroll down, click <em>Open Anyway</em>. You only do this once.</p></details>
+  <details><summary>Why is the picture behind live TV?</summary><p>Because the provider's stream is delivered in segments and sits several seconds behind the broadcast before it ever reaches you. <em>Low Latency</em> shrinks SKTV's own buffer to about three seconds; the provider's part can't be shrunk by any player. <a href="guides/why-streams-buffer.html">More →</a></p></details>
+  <details><summary>It buffers. Is it the app?</summary><p>Usually not, but SKTV can tell you: open Diagnostics (<kbd>Shift</kbd>+<kbd>D</kbd>) and run the probe. <a href="guides/why-streams-buffer.html">The five causes of buffering →</a></p></details>
+  <details><summary>Can I record?</summary><p>Yes — from the player or scheduled from the guide, with an "end late" overrun for sports. Recordings use the same connection as the picture where possible, so you don't get cut off for exceeding your provider's connection limit. Keep the app running for scheduled recordings.</p></details>
+  <details><summary>Does it do movies and series?</summary><p>Yes, with posters, seasons, resume and auto-next, plus downloads with resume. Xtream sources give the richest library; M3U depends on what's in the file.</p></details>
+  <details><summary>Multiple playlists? Multiple guides?</summary><p>Yes and yes. Several sources side by side, several XMLTV guides per playlist, a per-playlist time offset, and manual guide overrides for channels whose IDs don't match.</p></details>
+  <details><summary>How do updates work?</summary><p>Installed copies check a signed manifest shortly after start and every few hours, and offer an "Install &amp; restart" button. The update is verified against a key built into the app before it runs. You can also check by hand in Settings → About.</p></details>
+  <details><summary>Where's my data?</summary><p>In a local SQLite database in your user profile. Passwords are stored encrypted and never written to logs or diagnostic reports. Settings → Backup exports everything to an encrypted file you can restore on another machine.</p></details>
+  <details><summary>I found a bug.</summary><p><a href="https://github.com/samsondebug/desktop-iptv/issues" rel="noopener">Open an issue on GitHub</a> and paste a Diagnostics report — it's redacted, so it's safe to share.</p></details>
+</article>
+
+</div>
+<footer><div class="wrap">
+  <div class="row">
+    <a href="download/">Download</a>
+    <a href="guides/">Guides</a>
+    <a href="faq.html">FAQ</a>
+    <a href="privacy.html">Privacy &amp; legal</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/releases" rel="noopener">Release notes</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/issues" rel="noopener">Report a problem</a>
+  </div>
+  <div>This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.</div>
+  <div style="margin-top:8px">SKTV (formerly desktop-iptv) is an independent project and is not affiliated with any IPTV provider, broadcaster or reseller. No analytics, no accounts, no data collection.</div>
+</div></footer>
+<script src="assets/site.js" defer></script>
+</body>
+</html>

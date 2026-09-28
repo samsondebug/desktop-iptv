@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why IPTV streams buffer — SKTV guide</title>
+<meta name="description" content="The five sources of IPTV buffering, how to tell them apart, and what a player can and cannot fix.">
+<meta property="og:title" content="Why IPTV streams buffer — SKTV guide">
+<meta property="og:description" content="The five sources of IPTV buffering, how to tell them apart, and what a player can and cannot fix.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0b0d11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1115'/%3E%3Cpath d='M22 15v28l24-14z' fill='%2359c4ff'/%3E%3Crect x='16' y='48' width='27' height='3.5' rx='1.75' fill='%23fff'/%3E%3Crect x='16' y='54' width='19' height='3.5' rx='1.75' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="nav"><div class="wrap">
+  <a class="logo" href="../"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1115"/><path d="M22 15v28l24-14z" fill="#59c4ff"/><rect x="16" y="48" width="27" height="3.5" rx="1.75" fill="#fff"/><rect x="16" y="54" width="19" height="3.5" rx="1.75" fill="#fff"/></svg>SKTV</a>
+  <div class="links">
+    <a href="../#features" >Features</a>
+    <a href="../guides/" class="on">Guides</a>
+    <a href="../faq.html" >FAQ</a>
+    <a href="https://github.com/samsondebug/desktop-iptv" rel="noopener">GitHub</a>
+    <a class="btn primary cta" href="../download/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>
+  </div>
+</div></div>
+<div class="wrap">
+
+<article class="prose">
+  <h1>Why IPTV streams buffer</h1>
+  <p class="lede">Buffering has exactly five possible sources. A player can fix one of them, hide a second, and only report the other three. Here's how to tell which one you have.</p>
+
+  <h2>1. The stream itself</h2>
+  <p>A single channel that stutters while everything else on the same source is fine points at that stream: the provider's encoder for that channel is overloaded, the bitrate is higher than the link can carry, or the segment window is tiny. Nothing on your side changes this. Try the same channel in a different quality (many providers list HD and SD versions) or report it to them.</p>
+
+  <h2>2. The provider's server</h2>
+  <p>If every channel from one source stutters at the same times of day — evenings, big matches — the server or its uplink is saturated. Your download speed test will look perfect, because the bottleneck is on their end. Switching servers or CDNs is something only the provider can do; some offer several and let you pick.</p>
+
+  <h2>3. The path between you and them</h2>
+  <p>Wi-Fi jitter, a VPN, a busy household, an ISP that throttles video at peak times. The tell: <em>every</em> source behaves the same way, and it changes when you plug in a cable or turn the VPN off. SKTV's <b>Stable</b> profile keeps 20–60 seconds of buffer precisely to soak this up.</p>
+
+  <h2>4. Your machine</h2>
+  <p>A laptop decoding 4K HEVC on an integrated GPU, two multiscreen panes plus a recording, or a browser with forty tabs open. Watch the HUD (<kbd>I</kbd>): dropped frames with a full cache means the decoder can't keep up, not the network. Hardware decoding (<em>auto-safe</em>) is on by default; the <em>copy</em> variants are slower but survive odd drivers.</p>
+
+  <h2>5. The player</h2>
+  <p>This is the only one we control, and the honest answer is that a native player like SKTV mostly gets out of the way: the cache is sized for the job, reconnects are automatic, and channel changes don't tear the pipeline down. What we can't do is invent bandwidth or shorten the provider's segment window.</p>
+
+  <div class="callout"><p><b>Zap time is not live delay.</b> SKTV changes channels in about a second, but the picture is still 6–30 seconds behind the broadcast, because that's how far behind the provider's HLS window sits. <b>Low Latency</b> shrinks <em>our</em> buffer to about three seconds; it cannot shrink theirs.</p></div>
+
+  <h2>Change one thing at a time</h2>
+  <ol>
+    <li>Another channel on the same source works → it's that stream.</li>
+    <li>Another source works → it's this provider.</li>
+    <li>Ethernet or VPN-off changes it → it's the path.</li>
+    <li>Stopping recordings or the second pane fixes it → it's local load.</li>
+    <li>Still stuck → open Diagnostics (<kbd>Shift</kbd>+<kbd>D</kbd>), run the probe, copy the report. It's redacted, so you can send it to your provider as-is. <a href="diagnostics.html">How to read it →</a></li>
+  </ol>
+</article>
+
+</div>
+<footer><div class="wrap">
+  <div class="row">
+    <a href="../download/">Download</a>
+    <a href="../guides/">Guides</a>
+    <a href="../faq.html">FAQ</a>
+    <a href="../privacy.html">Privacy &amp; legal</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/releases" rel="noopener">Release notes</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/issues" rel="noopener">Report a problem</a>
+  </div>
+  <div>This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.</div>
+  <div style="margin-top:8px">SKTV (formerly desktop-iptv) is an independent project and is not affiliated with any IPTV provider, broadcaster or reseller. No analytics, no accounts, no data collection.</div>
+</div></footer>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

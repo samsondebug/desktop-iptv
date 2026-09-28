@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using Diagnostics — SKTV guide</title>
+<meta name="description" content="How to read SKTV's HTTP trace, stream probe and source check, and isolate playback problems one variable at a time.">
+<meta property="og:title" content="Using Diagnostics — SKTV guide">
+<meta property="og:description" content="How to read SKTV's HTTP trace, stream probe and source check, and isolate playback problems one variable at a time.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0b0d11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1115'/%3E%3Cpath d='M22 15v28l24-14z' fill='%2359c4ff'/%3E%3Crect x='16' y='48' width='27' height='3.5' rx='1.75' fill='%23fff'/%3E%3Crect x='16' y='54' width='19' height='3.5' rx='1.75' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="nav"><div class="wrap">
+  <a class="logo" href="../"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1115"/><path d="M22 15v28l24-14z" fill="#59c4ff"/><rect x="16" y="48" width="27" height="3.5" rx="1.75" fill="#fff"/><rect x="16" y="54" width="19" height="3.5" rx="1.75" fill="#fff"/></svg>SKTV</a>
+  <div class="links">
+    <a href="../#features" >Features</a>
+    <a href="../guides/" class="on">Guides</a>
+    <a href="../faq.html" >FAQ</a>
+    <a href="https://github.com/samsondebug/desktop-iptv" rel="noopener">GitHub</a>
+    <a class="btn primary cta" href="../download/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>
+  </div>
+</div></div>
+<div class="wrap">
+
+<article class="prose">
+  <h1>Using Diagnostics</h1>
+  <p class="lede">Settings → Diagnostics (or <kbd>Shift</kbd>+<kbd>D</kbd>) is where SKTV proves what's going on instead of guessing.</p>
+
+  <h2>HTTP trace</h2>
+  <p>Every request the app makes to your provider — playlist fetches, guide downloads, stream starts — with method, status, timing, content type and the first bytes of the response. A stream that returns <code>200</code> and <code>video/mp2t</code> in 300 ms is healthy; one that returns <code>302</code> to a login page, <code>403</code>, or takes eight seconds to answer tells you exactly where to look. Passwords, tokens and MAC addresses are replaced with <code>***</code> before anything is displayed.</p>
+
+  <h2>Stream probe</h2>
+  <p>Opens the current channel in a separate, invisible player and reports container, codecs, time to first frame and any error text. If the probe plays and the main window doesn't, it's a rendering or GPU problem; if the probe fails too, the stream is the problem.</p>
+
+  <h2>Source check</h2>
+  <p>For Xtream accounts: status, expiry and the maximum simultaneous connections your plan allows. When you open a second pane or start a recording, SKTV compares against this number and warns before the provider cuts you off.</p>
+
+  <h2>Log &amp; report</h2>
+  <p>The current session's log (already redacted) and a one-click <b>Copy report</b> that bundles the trace, the probe, the source check and your engine settings. Paste it to your provider or into a GitHub issue.</p>
+
+  <h2>The isolation recipe</h2>
+  <ol>
+    <li>Note what's wrong (stutter, no picture, no sound, slow zap).</li>
+    <li>Change one variable: another channel, another source, cable instead of Wi-Fi, VPN off, the other cache profile, hardware decoding to <em>copy</em>.</li>
+    <li>Watch the HUD (<kbd>I</kbd>): cache seconds, dropped frames, bitrate.</li>
+    <li>Repeat until one change fixes it. That's your answer.</li>
+  </ol>
+</article>
+
+</div>
+<footer><div class="wrap">
+  <div class="row">
+    <a href="../download/">Download</a>
+    <a href="../guides/">Guides</a>
+    <a href="../faq.html">FAQ</a>
+    <a href="../privacy.html">Privacy &amp; legal</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/releases" rel="noopener">Release notes</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/issues" rel="noopener">Report a problem</a>
+  </div>
+  <div>This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.</div>
+  <div style="margin-top:8px">SKTV (formerly desktop-iptv) is an independent project and is not affiliated with any IPTV provider, broadcaster or reseller. No analytics, no accounts, no data collection.</div>
+</div></footer>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

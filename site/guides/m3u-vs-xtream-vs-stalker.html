@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M3U vs Xtream vs Stalker — SKTV guide</title>
+<meta name="description" content="What the three IPTV source types are, what each gives the player, and which to choose.">
+<meta property="og:title" content="M3U vs Xtream vs Stalker — SKTV guide">
+<meta property="og:description" content="What the three IPTV source types are, what each gives the player, and which to choose.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0b0d11">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1115'/%3E%3Cpath d='M22 15v28l24-14z' fill='%2359c4ff'/%3E%3Crect x='16' y='48' width='27' height='3.5' rx='1.75' fill='%23fff'/%3E%3Crect x='16' y='54' width='19' height='3.5' rx='1.75' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<div class="nav"><div class="wrap">
+  <a class="logo" href="../"><svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1115"/><path d="M22 15v28l24-14z" fill="#59c4ff"/><rect x="16" y="48" width="27" height="3.5" rx="1.75" fill="#fff"/><rect x="16" y="54" width="19" height="3.5" rx="1.75" fill="#fff"/></svg>SKTV</a>
+  <div class="links">
+    <a href="../#features" >Features</a>
+    <a href="../guides/" class="on">Guides</a>
+    <a href="../faq.html" >FAQ</a>
+    <a href="https://github.com/samsondebug/desktop-iptv" rel="noopener">GitHub</a>
+    <a class="btn primary cta" href="../download/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download</a>
+  </div>
+</div></div>
+<div class="wrap">
+
+<article class="prose">
+  <h1>M3U vs Xtream vs Stalker</h1>
+  <p class="lede">Three ways a provider can hand you the same channels. They differ in how much the player learns about what it's playing.</p>
+
+  <table>
+    <tr><th></th><th>Xtream Codes</th><th>M3U / M3U8</th><th>Stalker / MAC</th></tr>
+    <tr><td>What you enter</td><td>Server URL, username, password</td><td>A link or a file</td><td>Portal URL and a MAC address</td></tr>
+    <tr><td>Live TV</td><td>Yes, with categories</td><td>Yes, groups from the file</td><td>Yes</td></tr>
+    <tr><td>Movies &amp; series</td><td>Yes, with posters, plots, seasons</td><td>Only if the file lists them</td><td>Not in SKTV yet</td></tr>
+    <tr><td>Guide (EPG)</td><td>Built in</td><td>Add an XMLTV link</td><td>Add an XMLTV link</td></tr>
+    <tr><td>Catch-up</td><td>Where the panel allows</td><td>Where the file flags it</td><td>No</td></tr>
+    <tr><td>Connection limit shown</td><td>Yes</td><td>No</td><td>No</td></tr>
+    <tr><td>In SKTV</td><td>Recommended</td><td>Fully supported</td><td>Experimental</td></tr>
+  </table>
+
+  <h2>Xtream Codes — pick this if you can</h2>
+  <p>Most providers run an Xtream-style panel, and it's the richest source: categories, posters, series with seasons, a guide, and your account's expiry and connection limit. Enter the server URL exactly as given (including the port), the username and the password. SKTV stores the password encrypted on your machine and never writes it to a log.</p>
+
+  <h2>M3U — the universal fallback</h2>
+  <p>A playlist is a text file: one line per channel, with a name, a group and a stream link. It works with everything, but it only knows what the file says. Pair it with your provider's XMLTV (EPG) link to get programme data. If the "playlist" you paste turns out to be a login page, SKTV tells you that instead of pretending it's a channel list.</p>
+
+  <h2>Stalker / MAC portal — for portal providers</h2>
+  <p>Some services only hand out a portal address and a MAC. SKTV can sign in and play live TV from these, but the format is designed for set-top boxes and gives a desktop player much less to work with, so it lives under Experimental. Ask your provider for Xtream or M3U details — most can provide them.</p>
+
+  <div class="callout"><p>Whatever the format, SKTV never supplies the source. Your provider does, and only you know whether they're licensed to.</p></div>
+</article>
+
+</div>
+<footer><div class="wrap">
+  <div class="row">
+    <a href="../download/">Download</a>
+    <a href="../guides/">Guides</a>
+    <a href="../faq.html">FAQ</a>
+    <a href="../privacy.html">Privacy &amp; legal</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/releases" rel="noopener">Release notes</a>
+    <a href="https://github.com/samsondebug/desktop-iptv/issues" rel="noopener">Report a problem</a>
+  </div>
+  <div>This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.</div>
+  <div style="margin-top:8px">SKTV (formerly desktop-iptv) is an independent project and is not affiliated with any IPTV provider, broadcaster or reseller. No analytics, no accounts, no data collection.</div>
+</div></footer>
+<script src="../assets/site.js" defer></script>
+</body>
+</html>

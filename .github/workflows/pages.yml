@@ -1,8 +1,9 @@
 name: pages
 
-# Publishes site/ (the download page) to GitHub Pages: https://samsondebug.github.io/desktop-iptv/
-# The page itself reads the latest release from the GitHub API, so it does not need to be
-# rebuilt per release — only when site/ changes. Pages requires a public repo on the free plan.
+# Publishes site/ (the SKTV website) to GitHub Pages: https://samsondebug.github.io/desktop-iptv/
+# The same folder is deployed to Vercel for sktv.app (which additionally runs site/api/download.js
+# for the /download/<os> short links — Pages serves the static pages only). The pages read the
+# latest release from the GitHub API, so nothing is rebuilt per release — only when site/ changes.
 
 on:
   push:
