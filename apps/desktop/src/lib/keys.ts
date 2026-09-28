@@ -26,7 +26,7 @@ export function useKeyboard() {
           return;
         }
         if (s.ui.recordDialog) return s.setUi({ recordDialog: null });
-        if (s.ui.libraryOpen) return s.setUi({ libraryOpen: false });
+        if (s.rail.kind === "library") return s.selectRail({ kind: "all" });
         if (s.mini) return void s.setMini(false);
         if (s.ui.resumePrompt) return s.setUi({ resumePrompt: null });
         if (s.ui.unlockOpen) return s.setUi({ unlockOpen: false });
@@ -55,7 +55,7 @@ export function useKeyboard() {
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Modal open: only Esc (handled above) and Enter for the resume prompt.
-      if (s.ui.resumePrompt || s.ui.unlockOpen || s.ui.epgEditChannel || s.ui.seriesOpen != null || s.ui.recordDialog || s.ui.libraryOpen) return;
+      if (s.ui.resumePrompt || s.ui.unlockOpen || s.ui.epgEditChannel || s.ui.seriesOpen != null || s.ui.recordDialog) return;
 
       // Letters are matched case-insensitively so Shift/CapsLock combos still work.
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;

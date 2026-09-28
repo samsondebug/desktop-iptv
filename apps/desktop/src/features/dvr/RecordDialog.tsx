@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { ipc } from "../../lib/ipc";
 import { fmtTime, useApp } from "../../lib/store";
+import Icon from "../../components/Icon";
 
 const PRESETS = [30, 60, 90, 120, 180, 240];
 
@@ -50,7 +51,7 @@ export default function RecordDialog() {
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="modal" style={{ width: 460 }}>
-        <div className="text-[15px] font-semibold">● Record · {dlg.channel.name}</div>
+        <div className="text-[15px] font-semibold flex items-center gap-2"><Icon name="record" size={14} style={{ color: "var(--live)" }} /> Record · {dlg.channel.name}</div>
         {prog ? (
           <div className="mt-1" style={{ color: "var(--text-dim)", fontSize: 12.5 }}>
             {prog.title} · {fmtTime(prog.start)}–{fmtTime(prog.stop)}
@@ -91,7 +92,7 @@ export default function RecordDialog() {
             Cancel
           </button>
           <button className="btn primary" disabled={busy} onClick={() => void go()}>
-            {prog && prog.start > now ? "Schedule (⏎)" : "Record (⏎)"}
+            {prog && prog.start > now ? "Schedule" : "Record"}
           </button>
         </div>
       </div>

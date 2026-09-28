@@ -42,7 +42,7 @@ export function ResumePromptModal() {
             Start over
           </button>
           <button className="btn primary" onClick={() => void go(false)}>
-            Resume (⏎)
+            Resume
           </button>
         </div>
       </div>

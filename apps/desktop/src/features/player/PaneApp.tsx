@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { events, ipc, telemetryOf, type ChannelRecord, type EngineTelemetryEvent, type PaneInfo, type PlaylistSummary } from "../../lib/ipc";
 import { shortCodec } from "./Hud";
+import Icon from "../../components/Icon";
 
 export default function PaneApp({ label }: { label: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -78,36 +79,43 @@ export default function PaneApp({ label }: { label: string }) {
   return (
     <div className="h-full w-full flex flex-col" style={{ background: "transparent" }}>
       <div className="opaque flex items-center gap-2 px-2 border-b shrink-0" style={{ height: 36, borderColor: "var(--border)" }}>
-        <span className="font-semibold" style={{ fontSize: 12 }}>
-          {label}
+        <span className="font-semibold" style={{ fontSize: 12.5 }}>
+          Pane {label.replace(/^pane-/, "")}
         </span>
-        <span className="truncate" style={{ color: "var(--text-dim)", fontSize: 12 }}>
-          {current?.name ?? "no channel"}
+        <span className="truncate" style={{ color: current ? "var(--text)" : "var(--text-faint)", fontSize: 12.5 }}>
+          {current?.name ?? "No channel"}
         </span>
         <div className="flex-1" />
-        {tele && tele.width > 0 && (
-          <span className="hud" style={{ fontSize: 10 }}>
+        {current && tele && tele.width > 0 && (
+          <span className="hud" style={{ fontSize: 11.5 }}>
             {tele.width}x{tele.height} · {shortCodec(tele.codec_name)} · {tele.fps ? Math.round(tele.fps) + "fps" : ""}
           </span>
         )}
-        <button className={"btn" + (info?.has_audio ? " primary" : " ghost")} title={info?.has_audio ? "Audio is here — click to give it back to the main player" : "Give audio to this pane"} onClick={() => void ipc.paneAudio(info?.has_audio ? "main" : label)}>
-          {info?.has_audio ? "🔊" : "🔇"}
+        <button className="btn" onClick={() => setPickerOpen((v) => !v)} title="Choose channel">
+          <Icon name="tv" size={14} />
+          Channel
+          <Icon name={pickerOpen ? "chevronUp" : "chevronDown"} size={14} />
         </button>
-        <button className="btn ghost" onClick={() => setPickerOpen((v) => !v)} title="Choose channel">
-          {pickerOpen ? "▲" : "▼"}
+        <button
+          className={"btn icon" + (info?.has_audio ? " primary" : " ghost")}
+          title={info?.has_audio ? "Audio is on this pane — click to give it back to the main player" : "Give audio to this pane"}
+          aria-label="Audio lock"
+          onClick={() => void ipc.paneAudio(info?.has_audio ? "main" : label)}
+        >
+          <Icon name={info?.has_audio ? "volume" : "muted"} size={16} />
         </button>
-        <button className="btn ghost" onClick={() => void ipc.paneStop(label)} title="Stop">
-          ■
+        <button className="btn ghost icon" onClick={() => void ipc.paneStop(label)} title="Stop" aria-label="Stop">
+          <Icon name="stop" size={14} />
         </button>
-        <button className="btn ghost" onClick={() => void ipc.paneClose(label)} title="Close pane">
-          ✕
+        <button className="btn ghost icon" onClick={() => void ipc.paneClose(label)} title="Close pane" aria-label="Close pane">
+          <Icon name="close" size={16} />
         </button>
       </div>
       <div className="flex-1 min-h-0 flex">
         <div ref={ref} className="flex-1 relative" style={{ background: "transparent" }}>
           {!current && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ color: "var(--text-faint)", fontSize: 12 }}>
-              Pick a channel ▸
+              Pick a channel
             </div>
           )}
           {error && (

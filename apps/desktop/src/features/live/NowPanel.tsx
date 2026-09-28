@@ -20,7 +20,7 @@ function Section({ title, children, right }: { title: string; children: React.Re
   return (
     <div className="p-3 border-b" style={{ borderColor: "var(--border)" }}>
       <div className="flex items-center justify-between mb-1">
-        <div style={{ color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }}>{title}</div>
+        <div style={{ color: "var(--text-faint)", fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.06em" }}>{title}</div>
         {right}
       </div>
       {children}
@@ -66,7 +66,7 @@ export default function NowPanel() {
           <>
             <div className="text-[15px] font-semibold mt-1 leading-tight">{current.name}</div>
             <div style={{ color: "var(--text-dim)", fontSize: 12 }}>{current.group_title ?? "—"}</div>
-            <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }} className="mt-1 truncate">
+            <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }} className="mt-1 truncate">
               tvg-id {nn?.tvg_id ?? current.tvg_id ?? "—"}
               {current.catchup_days > 0 && ` · catch-up ${current.catchup_days}d`}
             </div>
@@ -99,7 +99,7 @@ export default function NowPanel() {
           title="Guide"
           right={
             current && (
-              <button className="btn ghost" style={{ padding: "0 6px", fontSize: 11 }} onClick={() => setUi({ epgEditChannel: current })} title="Edit EPG (tvg-id) for this channel">
+              <button className="btn ghost" style={{ padding: "0 6px", fontSize: 11.5 }} onClick={() => setUi({ epgEditChannel: current })} title="Edit EPG (tvg-id) for this channel">
                 Edit EPG
               </button>
             )
@@ -111,7 +111,7 @@ export default function NowPanel() {
                 <div>
                   <div className="flex items-baseline justify-between gap-2">
                     <div className="font-semibold truncate">{nn.now.title}</div>
-                    <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11, whiteSpace: "nowrap" }}>
+                    <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5, whiteSpace: "nowrap" }}>
                       {fmtTime(nn.now.start)}–{fmtTime(nn.now.stop)}
                     </div>
                   </div>
@@ -146,7 +146,7 @@ export default function NowPanel() {
       )}
 
       <div className="p-3 flex-1 overflow-auto">
-        <div style={{ color: "var(--text-faint)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em" }} className="mb-1">
+        <div style={{ color: "var(--text-faint)", fontSize: 11.5, textTransform: "uppercase", letterSpacing: "0.06em" }} className="mb-1">
           Engine
         </div>
         <Stat k="backend" v={boot.engine_kind} warn={boot.engine_kind === "stub"} />
@@ -163,17 +163,17 @@ export default function NowPanel() {
             {playback?.is_vod && t.duration_s > 0 && <Stat k="position" v={`${fmtDuration(t.time_pos_s)} / ${fmtDuration(t.duration_s)}`} />}
           </>
         )}
-        <div className="mt-3" style={{ color: "var(--text-faint)", fontSize: 11, lineHeight: 1.5 }}>
+        <div className="mt-3" style={{ color: "var(--text-faint)", fontSize: 11.5, lineHeight: 1.5 }}>
           Zap time ≠ live delay. Provider HLS windows are often 6–20 s server-side; Low Latency only shrinks <em>our</em> cache.
         </div>
       </div>
 
-      <div className="p-3 border-t" style={{ borderColor: "var(--border)", color: "var(--text-faint)", fontSize: 11 }}>
+      <div className="p-3 border-t" style={{ borderColor: "var(--border)", color: "var(--text-faint)", fontSize: 11.5 }}>
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           <span><span className="kbd">/</span> search</span>
           <span><span className="kbd">↑↓</span> move</span>
           <span><span className="kbd">←→</span> {playback?.is_vod ? "seek" : "guide"}</span>
-          <span><span className="kbd">⏎</span> play</span>
+          <span><span className="kbd">Enter</span> play</span>
           <span><span className="kbd">f</span> fullscreen</span>
           <span><span className="kbd">m</span> mute</span>
           <span><span className="kbd">p</span> profile</span>

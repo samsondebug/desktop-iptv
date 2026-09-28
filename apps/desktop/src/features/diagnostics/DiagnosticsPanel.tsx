@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { ipc, type HttpTrace, type ProbeResult, type SourceCheck } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
+import Icon from "../../components/Icon";
 
 type Tab = "report" | "http" | "probe" | "sources";
 
@@ -46,7 +47,7 @@ export default function DiagnosticsPanel() {
         <div className="flex items-center justify-between mb-2">
           <div>
             <div className="text-[16px] font-semibold">Diagnostics</div>
-            <div style={{ color: "var(--text-faint)", fontSize: 11 }}>
+            <div style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
               {boot.product} {boot.version} · {boot.platform} · engine {boot.engine_kind}
             </div>
           </div>
@@ -55,7 +56,7 @@ export default function DiagnosticsPanel() {
               {copied ? "Copied" : "Copy sanitized report"}
             </button>
             <button className="btn ghost" onClick={close}>
-              ✕
+              <Icon name="close" size={16} />
             </button>
           </div>
         </div>
@@ -99,7 +100,7 @@ function ReportTab({ buildReport }: { buildReport: () => Promise<string> }) {
           <label>Sanitized report — passwords, tokens, MACs and Xtream path credentials are replaced with ***</label>
         </div>
         <button className="btn ghost" onClick={refresh}>
-          ↻ Refresh
+          <Icon name="refresh" size={14} /> Refresh
         </button>
       </div>
       <Pre text={text} maxHeight={460} />
@@ -182,9 +183,9 @@ function HttpTab() {
               ↳ redirect {i + 1}: {h}
             </div>
           ))}
-          {sel.error && <div style={{ color: "var(--danger)" }}>✗ {sel.error}</div>}
+          {sel.error && <div className="flex items-center gap-1" style={{ color: "var(--danger)" }}><Icon name="alert" size={13} /> {sel.error}</div>}
           {sel.preview && (
-            <pre className="mt-1 whitespace-pre-wrap" style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)", wordBreak: "break-all" }}>
+            <pre className="mt-1 whitespace-pre-wrap" style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--text-dim)", wordBreak: "break-all" }}>
               {sel.preview}
             </pre>
           )}
@@ -248,8 +249,9 @@ function ProbeTab({ profile }: { profile: string }) {
       )}
       {res && (
         <div className="rounded-md p-3" style={{ background: "var(--bg-elev-2)", fontSize: 12.5, lineHeight: 1.7 }}>
-          <div className="font-semibold" style={{ color: res.ok ? "var(--ok)" : "var(--danger)" }}>
-            {res.ok ? `✓ First frame in ${res.ttff_ms} ms` : `✗ ${res.error ?? "failed"}`}
+          <div className="font-semibold flex items-center gap-1.5" style={{ color: res.ok ? "var(--ok)" : "var(--danger)" }}>
+            <Icon name={res.ok ? "check" : "alert"} size={15} />
+            {res.ok ? `First frame in ${res.ttff_ms} ms` : (res.error ?? "failed")}
           </div>
           <KV k="url" v={res.url} />
           <KV k="container" v={res.container} />
@@ -294,10 +296,10 @@ function SourcesTab() {
           <div key={p.id} className="rounded-md p-2 mb-2" style={{ border: "1px solid var(--border)" }}>
             <div className="flex items-center gap-2">
               <span className="font-semibold">{p.name}</span>
-              <span className="badge" style={{ fontSize: 10 }}>
+              <span className="badge" style={{ fontSize: 11.5 }}>
                 {p.type}
               </span>
-              <span className="truncate" style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }}>
+              <span className="truncate" style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>
                 {p.base_url_redacted}
               </span>
               <div className="flex-1" />
@@ -307,8 +309,9 @@ function SourcesTab() {
             </div>
             {r && (
               <div className="mt-2" style={{ fontSize: 12, lineHeight: 1.7 }}>
-                <div className="font-semibold" style={{ color: r.ok ? "var(--ok)" : "var(--danger)" }}>
-                  {r.ok ? "✓ OK" : `✗ ${r.error ?? "failed"}`} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {r.elapsed_ms} ms</span>
+                <div className="font-semibold flex items-center gap-1.5" style={{ color: r.ok ? "var(--ok)" : "var(--danger)" }}>
+                  <Icon name={r.ok ? "check" : "alert"} size={15} />
+                  {r.ok ? "OK" : (r.error ?? "failed")} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {r.elapsed_ms} ms</span>
                 </div>
                 {r.kind === "m3u" && (
                   <>
@@ -349,7 +352,7 @@ function KV({ k, v }: { k: string; v: string | null | undefined }) {
 
 function Pre({ text, maxHeight }: { text: string; maxHeight: number }) {
   return (
-    <pre className="rounded-md p-2 overflow-auto whitespace-pre-wrap" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight, fontSize: 11, fontFamily: "var(--mono)", color: "var(--text-dim)", wordBreak: "break-all" }}>
+    <pre className="rounded-md p-2 overflow-auto whitespace-pre-wrap" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight, fontSize: 11.5, fontFamily: "var(--mono)", color: "var(--text-dim)", wordBreak: "break-all" }}>
       {text}
     </pre>
   );

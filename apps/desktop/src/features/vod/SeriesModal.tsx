@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ipc, type EpisodeRecord, type SeriesDetail } from "../../lib/ipc";
 import { fmtDuration, useApp } from "../../lib/store";
+import Icon from "../../components/Icon";
 
 export default function SeriesModal({ seriesId }: { seriesId: number }) {
   const setUi = useApp((s) => s.setUi);
@@ -58,7 +59,7 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
             )}
             <div className="flex-1" />
             <button className="btn ghost" onClick={close}>
-              ✕
+              <Icon name="close" size={16} />
             </button>
           </div>
         ) : (
@@ -71,13 +72,13 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
                 <div className="flex items-start gap-2">
                   <div className="text-[18px] font-semibold leading-tight flex-1">{detail.series.title}</div>
                   <button className="btn ghost" onClick={() => void load(true)} title="Refresh episodes" disabled={busy}>
-                    ↻
+                    <Icon name="refresh" size={15} />
                   </button>
                   <button className="btn ghost" onClick={close}>
-                    ✕
+                    <Icon name="close" size={16} />
                   </button>
                 </div>
-                <div className="mt-1" style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }}>
+                <div className="mt-1" style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>
                   {[detail.series.year, detail.series.genre, detail.series.rating ? `★ ${detail.series.rating.toFixed(1)}` : null, `${detail.episodes.length} episodes`, detail.series.category].filter(Boolean).join(" · ")}
                 </div>
                 {detail.series.description && (
@@ -88,7 +89,7 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
                 <div className="mt-3 flex gap-2">
                   {nextUnwatched && (
                     <button className="btn primary" onClick={() => void playEpisode(nextUnwatched, detail.series)}>
-                      ▶ {progress.get(nextUnwatched.id) ? "Continue" : "Play"} S{nextUnwatched.season}E{nextUnwatched.episode}
+                      <Icon name="play" size={12} /> {progress.get(nextUnwatched.id) ? "Continue" : "Play"} S{nextUnwatched.season}E{nextUnwatched.episode}
                     </button>
                   )}
                 </div>
@@ -123,14 +124,14 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
                         </div>
                       )}
                     </div>
-                    <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }}>{e.duration ? fmtDuration(e.duration) : ""}</div>
+                    <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>{e.duration ? fmtDuration(e.duration) : ""}</div>
                     <div className="flex gap-1">
                       <button className="btn" onClick={() => void playEpisode(e, detail.series)}>
-                        ▶ {pct > 0 && pct < 1 ? "Resume" : "Play"}
+                        <Icon name="play" size={12} /> {pct > 0 && pct < 1 ? "Resume" : "Play"}
                       </button>
                       {pct > 0 && (
                         <button className="btn ghost" title="Clear progress" onClick={() => void ipc.clearProgress("episode", e.id).then(() => load(false))}>
-                          ↺
+                          <Icon name="undo" size={14} />
                         </button>
                       )}
                       <button
@@ -143,7 +144,7 @@ export default function SeriesModal({ seriesId }: { seriesId: number }) {
                             .catch((err) => pushToast({ level: "error", title: "Download refused", body: String(err) }))
                         }
                       >
-                        ⤓
+                        <Icon name="download" size={14} />
                       </button>
                     </div>
                   </div>

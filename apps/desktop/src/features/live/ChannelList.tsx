@@ -8,6 +8,7 @@ import { LIST_ENTER, LIST_MOVE } from "../../lib/keys";
 import { useApp } from "../../lib/store";
 import { type ChannelRecord } from "../../lib/ipc";
 import { useChannelSource } from "./useChannelSource";
+import Icon from "../../components/Icon";
 
 const ROW_H = 44;
 
@@ -104,7 +105,7 @@ export default function ChannelList() {
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="font-semibold truncate">{title}</div>
-        <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }}>
+        <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>
           {src.loading ? "…" : src.count.toLocaleString()}
           {fps != null && ` · ${fps} fps`}
         </div>
@@ -199,7 +200,7 @@ function Row({
       <span className="flex items-center gap-2">
         {ch.catchup_days > 0 && (
           <span className="kbd" title={`Catch-up ${ch.catchup_days} days`}>
-            ⟲{ch.catchup_days}d
+            <Icon name="clock" size={11} /> {ch.catchup_days}d
           </span>
         )}
         {active && <span className="badge-live">LIVE</span>}
@@ -212,7 +213,7 @@ function Row({
           }}
           title="Favorite"
         >
-          {fav ? "★" : "☆"}
+          <Icon name={fav ? "starFilled" : "star"} size={15} />
         </button>
       </span>
     </div>

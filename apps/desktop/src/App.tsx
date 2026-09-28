@@ -18,7 +18,7 @@ import SettingsDrawer from "./features/settings/SettingsDrawer";
 import AddPlaylistDialog from "./features/settings/AddPlaylistDialog";
 import DiagnosticsPanel from "./features/diagnostics/DiagnosticsPanel";
 import RecordDialog from "./features/dvr/RecordDialog";
-import LibraryModal from "./features/dvr/LibraryModal";
+import LibraryPane from "./features/dvr/LibraryPane";
 import type { ChannelRecord } from "./lib/ipc";
 
 /** Apply user theme tokens (CSS variables) on top of the built-in theme. */
@@ -60,6 +60,7 @@ export default function App() {
   const tab = useApp((s) => s.tab);
   const guideMode = useApp((s) => s.guideMode);
   const playlists = useApp((s) => s.playlists);
+  const rail = useApp((s) => s.rail);
 
   useEffect(() => {
     init().catch((e) => console.error("bootstrap failed", e));
@@ -108,7 +109,19 @@ export default function App() {
   }
 
   const empty = playlists.length === 0;
-  const bottom = empty ? <EmptyState /> : tab === "live" ? guideMode === "guide" ? <EpgGrid /> : <ChannelList /> : <VodBrowser kind={tab === "movies" ? "movie" : "series"} />;
+  const bottom = empty ? (
+    <EmptyState />
+  ) : tab === "live" && rail.kind === "library" ? (
+    <LibraryPane />
+  ) : tab === "live" ? (
+    guideMode === "guide" ? (
+      <EpgGrid />
+    ) : (
+      <ChannelList />
+    )
+  ) : (
+    <VodBrowser kind={tab === "movies" ? "movie" : "series"} />
+  );
 
   return (
     <div className="h-full w-full flex flex-col" style={{ background: ui.fullscreen ? "transparent" : "var(--bg)" }}>
@@ -135,7 +148,6 @@ export default function App() {
       {ui.unlockOpen && <UnlockModal />}
       {ui.epgEditChannel && <EpgEditModal />}
       {ui.recordDialog && <RecordDialog />}
-      {ui.libraryOpen && <LibraryModal />}
       <Toasts />
     </div>
   );

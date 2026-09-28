@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ipc, type VodGroup } from "../lib/ipc";
 import { useApp, vodKindOfTab, type RailSelection } from "../lib/store";
+import Icon, { type IconName } from "./Icon";
 
 function same(a: RailSelection, b: RailSelection) {
   return a.kind === b.kind && (a.kind !== "group" || b.kind !== "group" || a.title === b.title);
@@ -22,8 +23,6 @@ export default function Rail() {
   const vodCategory = useApp((s) => s.ui.vodCategory);
   const refreshParental = useApp((s) => s.refreshParental);
   const activeRecordings = useApp((s) => s.activeRecordings);
-  const panes = useApp((s) => s.panes);
-  const openPane = useApp((s) => s.openPane);
   const [filter, setFilter] = useState("");
   const [vodGroups, setVodGroups] = useState<VodGroup[]>([]);
   const [vodTotal, setVodTotal] = useState(0);
@@ -50,16 +49,23 @@ export default function Rail() {
       <div className="p-2 flex flex-col gap-0.5">
         {!kind ? (
           <>
-            <RailItem label="★ Favorites" count={favorites.length} active={same(rail, { kind: "favorites" })} onClick={() => selectRail({ kind: "favorites" })} />
-            <RailItem label="◷ Recently viewed" count={recents.length} active={same(rail, { kind: "recents" })} onClick={() => selectRail({ kind: "recents" })} />
-            <RailItem label="All channels" count={total} active={same(rail, { kind: "all" })} onClick={() => selectRail({ kind: "all" })} />
-            <RailItem label="● Recordings & downloads" count={activeRecordings || null} active={false} onClick={() => setUi({ libraryOpen: true })} />
-            <RailItem label="⊞ Multiscreen pane" count={panes.length || null} active={false} onClick={() => void openPane(null)} muted />
+            <RailItem icon="list" label="All channels" count={total} active={same(rail, { kind: "all" })} onClick={() => selectRail({ kind: "all" })} />
+            <RailItem icon="star" label="Favorites" count={favorites.length} active={same(rail, { kind: "favorites" })} onClick={() => selectRail({ kind: "favorites" })} />
+            <RailItem icon="clock" label="Recently viewed" count={recents.length} active={same(rail, { kind: "recents" })} onClick={() => selectRail({ kind: "recents" })} />
+            <RailItem
+              icon="library"
+              label="Recordings & downloads"
+              count={activeRecordings || null}
+              countLive={activeRecordings > 0}
+              active={same(rail, { kind: "library" })}
+              onClick={() => selectRail({ kind: "library" })}
+            />
           </>
         ) : (
           <>
-            <RailItem label="▶ Continue watching" count={null} active={rail.kind === "continue"} onClick={() => selectRail({ kind: "continue" })} />
+            <RailItem icon="play" label="Continue watching" count={null} active={rail.kind === "continue"} onClick={() => selectRail({ kind: "continue" })} />
             <RailItem
+              icon="list"
               label={kind === "movie" ? "All movies" : "All series"}
               count={vodTotal}
               active={rail.kind !== "continue" && vodCategory == null}
@@ -102,8 +108,11 @@ export default function Rail() {
         </div>
       </div>
       {parental?.enabled && (
-        <div className="px-2 py-1.5 border-t flex items-center justify-between" style={{ borderColor: "var(--border)", fontSize: 11.5 }}>
-          <span style={{ color: parental.unlocked ? "var(--warn)" : "var(--text-faint)" }}>{parental.unlocked ? "🔓 Filter off" : "🔒 Parental filter on"}</span>
+        <div className="px-2 py-1.5 border-t flex items-center justify-between" style={{ borderColor: "var(--border)", fontSize: 12 }}>
+          <span className="flex items-center gap-1.5" style={{ color: parental.unlocked ? "var(--warn)" : "var(--text-faint)" }}>
+            <Icon name={parental.unlocked ? "unlock" : "lock"} size={14} />
+            {parental.unlocked ? "Filter off" : "Parental filter on"}
+          </span>
           <button
             className="btn ghost"
             style={{ padding: "0 6px" }}
@@ -117,11 +126,19 @@ export default function Rail() {
   );
 }
 
-function RailItem({ label, count, active, onClick, muted }: { label: string; count: number | null; active: boolean; onClick: () => void; muted?: boolean }) {
+function RailItem({ icon, label, count, countLive, active, onClick }: { icon: IconName; label: string; count: number | null; countLive?: boolean; active: boolean; onClick: () => void }) {
   return (
-    <div className={"rail-item" + (active ? " active" : "")} style={muted ? { color: "var(--text-faint)" } : undefined} onClick={onClick}>
-      <span>{label}</span>
-      {count != null && <span className="count">{count.toLocaleString()}</span>}
+    <div className={"rail-item" + (active ? " active" : "")} onClick={onClick}>
+      <span className="flex items-center gap-2 min-w-0">
+        <Icon name={icon} size={15} style={{ color: active ? "var(--accent)" : "var(--text-faint)" }} />
+        <span className="truncate">{label}</span>
+      </span>
+      {count != null && (
+        <span className="count" style={countLive ? { color: "var(--live)", fontWeight: 700 } : undefined}>
+          {countLive ? "● " : ""}
+          {count.toLocaleString()}
+        </span>
+      )}
     </div>
   );
 }

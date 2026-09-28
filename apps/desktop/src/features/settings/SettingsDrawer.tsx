@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { ipc, type ConfigPayload, type EpgSource, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
+import Icon from "../../components/Icon";
 
 const HWDEC: { v: HwDecoding; label: string; os?: string[] }[] = [
   { v: "auto-safe", label: "Auto (safe) — recommended" },
@@ -45,7 +46,7 @@ export default function SettingsDrawer() {
         <div className="flex items-center justify-between mb-2">
           <div className="text-[16px] font-semibold">Settings</div>
           <button className="btn ghost" onClick={close}>
-            ✕
+            <Icon name="close" size={16} />
           </button>
         </div>
         <div className="tabs">
@@ -139,7 +140,7 @@ function AdvancedMpv() {
             <option key={k}>{k}</option>
           ))}
         </select>
-        <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-faint)", minWidth: 120 }}>now: {cur ?? "—"}</span>
+        <span style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--text-faint)", minWidth: 120 }}>now: {cur ?? "—"}</span>
         <input className="input" style={{ width: 160 }} value={val} onChange={(e) => setVal(e.target.value)} placeholder="value" spellCheck={false} />
         <button
           className="btn"
@@ -153,7 +154,7 @@ function AdvancedMpv() {
           Apply
         </button>
       </div>
-      <div className="mt-1" style={{ color: "var(--text-faint)", fontSize: 11 }}>
+      <div className="mt-1" style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
         The two profiles cover 99% of cases; this is the documented escape hatch (CLAUDE.md §6.2). Changes reset when the app restarts.
       </div>
     </div>
@@ -280,16 +281,16 @@ function PlaylistsTab({ draft, set }: { draft: ConfigPayload; set: <K extends ke
                     {p.name} <span className="kbd">{p.type}</span>
                   </div>
                 )}
-                <div className="truncate" style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 10.5 }}>
+                <div className="truncate" style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>
                   {p.base_url_redacted}
                 </div>
               </div>
-              <span style={{ color: "var(--text-faint)", fontSize: 11, fontFamily: "var(--mono)" }}>{p.channel_count.toLocaleString()} ch</span>
+              <span style={{ color: "var(--text-faint)", fontSize: 11.5, fontFamily: "var(--mono)" }}>{p.channel_count.toLocaleString()} ch</span>
               <button className="btn ghost" title="Refresh channels, guide and library" disabled={busy} onClick={() => void ipc.refreshPlaylist(p.id)}>
-                {busy ? "…" : "↻"}
+                {busy ? <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} /> : <Icon name="refresh" size={15} />}
               </button>
               <button className="btn ghost" title="Remove" onClick={() => void ipc.deletePlaylist(p.id).then(reloadPlaylists).then(() => pushToast({ level: "info", title: `Removed ${p.name}` }))}>
-                🗑
+                <Icon name="trash" size={15} />
               </button>
             </div>
             {meta && (
@@ -312,7 +313,7 @@ function PlaylistsTab({ draft, set }: { draft: ConfigPayload; set: <K extends ke
                   </div>
                 )}
                 {acct && (
-                  <div className="col-span-2 flex flex-wrap gap-x-4 gap-y-1" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
+                  <div className="col-span-2 flex flex-wrap gap-x-4 gap-y-1" style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>
                     <span>
                       status <b style={{ color: acct.status === "Active" ? "var(--accent-2)" : "var(--warn)" }}>{acct.status ?? "?"}</b>
                     </span>
@@ -387,7 +388,7 @@ function GuideTab() {
             )}
             <div className="mt-2 flex gap-2">
               <button className="btn" onClick={() => void ipc.refreshEpg(p.id).then((ok) => pushToast({ level: "info", title: ok ? "Guide refresh started" : "A sync is already running" }))}>
-                ↻ Refresh guide now
+                <Icon name="refresh" size={14} /> Refresh guide now
               </button>
             </div>
           </div>
@@ -408,15 +409,15 @@ function GuideTab() {
               {sources.map((s) => (
                 <div key={s.id} className="flex items-center gap-2 rounded-md px-2 py-1" style={{ background: "var(--bg-elev-2)", fontSize: 12 }}>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
+                    <div className="truncate" style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>
                       {s.url_redacted}
                     </div>
-                    <div style={{ color: s.last_error ? "var(--danger)" : "var(--text-faint)", fontSize: 11 }}>
+                    <div style={{ color: s.last_error ? "var(--danger)" : "var(--text-faint)", fontSize: 11.5 }}>
                       {s.last_error ?? (s.last_synced ? `${s.programme_count.toLocaleString()} programmes · ${s.last_synced.replace("T", " ")}` : "not synced yet")}
                     </div>
                   </div>
                   <button className="btn ghost" onClick={() => void ipc.deleteEpgSource(s.id).then(() => setSources((x) => x.filter((y) => y.id !== s.id)))}>
-                    🗑
+                    <Icon name="trash" size={15} />
                   </button>
                 </div>
               ))}
@@ -568,7 +569,7 @@ function LicenseTab() {
       <div className="field">
         <label>Machine id (send this to get a key)</label>
         <div className="flex gap-2">
-          <input className="input" value={guid} readOnly style={{ fontFamily: "var(--mono)", fontSize: 11 }} />
+          <input className="input" value={guid} readOnly style={{ fontFamily: "var(--mono)", fontSize: 11.5 }} />
           <button className="btn" onClick={() => void navigator.clipboard.writeText(guid)}>
             Copy
           </button>
@@ -662,7 +663,7 @@ function AboutTab() {
     <section className="flex flex-col gap-3" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
       <BackupPanel />
       <div>{boot.legal_block}</div>
-      <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)" }}>
+      <div style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--text-dim)" }}>
         {boot.product} {boot.version} · {boot.platform}
         <br />
         engine: {boot.engine_description}

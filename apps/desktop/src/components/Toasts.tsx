@@ -1,4 +1,5 @@
 import { useApp } from "../lib/store";
+import Icon from "../components/Icon";
 
 export default function Toasts() {
   const toasts = useApp((s) => s.toasts);
@@ -11,7 +12,7 @@ export default function Toasts() {
           <div className="flex items-start justify-between gap-2">
             <div className="font-semibold text-[12.5px]">{t.title}</div>
             <button className="btn ghost" style={{ padding: "0 4px" }} onClick={() => dismiss(t.id)}>
-              ✕
+              <Icon name="close" size={14} />
             </button>
           </div>
           {t.body && (

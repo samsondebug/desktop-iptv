@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../lib/store";
+import Icon from "./Icon";
 
 function Clock() {
   const [now, setNow] = useState(new Date());
@@ -21,7 +22,7 @@ function TierBadge() {
     <span
       title={license.tier === "trial" ? "Full PRO features for 72 hours after your first import" : license.tier === "free" ? "Unlock PRO in Settings → License" : undefined}
       onClick={() => setUi({ settingsOpen: true, settingsTab: "license" })}
-      style={{ border: `1px solid ${color}`, color, borderRadius: 4, padding: "1px 6px", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", cursor: "default" }}
+      style={{ border: `1px solid ${color}`, color, borderRadius: 4, padding: "1px 6px", fontSize: 11.5, fontWeight: 700, letterSpacing: "0.08em", cursor: "default" }}
     >
       {label}
     </span>
@@ -62,7 +63,7 @@ export default function TopBar() {
       )}
 
       <div className="flex-1 flex items-center justify-center gap-1">
-        <div className="seg">
+        <div className="seg nav">
           <button className={tab === "live" ? "on" : ""} onClick={() => setTab("live")} title="Live TV (1)">
             Live
           </button>
@@ -81,7 +82,7 @@ export default function TopBar() {
 
       <div className="flex items-center gap-2">
         {phaseLabel && (
-          <span className="flex items-center gap-1.5" style={{ color: "var(--text-dim)", fontFamily: "var(--mono)", fontSize: 11 }}>
+          <span className="flex items-center gap-1.5" style={{ color: "var(--text-dim)", fontFamily: "var(--mono)", fontSize: 11.5 }}>
             <span className="spinner" style={{ width: 12, height: 12, borderWidth: 2 }} />
             {phaseLabel}
           </span>
@@ -95,13 +96,15 @@ export default function TopBar() {
           ))}
         </select>
         <button className="btn" onClick={() => setUi({ addPlaylistOpen: true })} title="Add a playlist">
-          + Playlist
+          <Icon name="plus" size={14} />
+          Playlist
         </button>
         <button className="btn ghost" onClick={() => setUi({ diagnosticsOpen: true })} title="Diagnostics (Shift+D)">
-          Diag
+          <Icon name="activity" size={16} />
+          Diagnostics
         </button>
-        <button className="btn ghost" onClick={() => setUi({ settingsOpen: true })} title="Settings (Shift+S)">
-          ⚙
+        <button className="btn ghost icon" onClick={() => setUi({ settingsOpen: true })} title="Settings (Shift+S)" aria-label="Settings">
+          <Icon name="settings" size={18} />
         </button>
       </div>
     </div>

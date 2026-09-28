@@ -8,6 +8,7 @@ import { ipc, type ContinueItem, type VodKind, type VodRecord } from "../../lib/
 import { LIST_ENTER, LIST_MOVE } from "../../lib/keys";
 import { fmtDuration, useApp } from "../../lib/store";
 import { useVodSource } from "./useVodSource";
+import Icon from "../../components/Icon";
 
 const CARD_W = 150;
 const CARD_H = 290;
@@ -104,7 +105,7 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
         <div className="font-semibold truncate">
           {showContinue ? "Continue watching" : search.trim() ? `Search: “${search.trim()}”` : category ?? (kind === "movie" ? "All movies" : "All series")}
         </div>
-        <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }}>{showContinue ? continueItems.length : src.loading ? "…" : src.count.toLocaleString()}</div>
+        <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>{showContinue ? continueItems.length : src.loading ? "…" : src.count.toLocaleString()}</div>
         <div className="flex-1" />
         <select className="input" style={{ width: 130 }} value={sort} onChange={(e) => setUi({ vodSort: e.target.value as typeof sort })}>
           <option value="added">Newest</option>
@@ -126,16 +127,17 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
 
       {menu && (
         <div className="fixed z-50 panel rounded-md py-1" style={{ left: menu.x, top: menu.y, minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
-          <div className="px-3 py-1 truncate" style={{ color: "var(--text-faint)", fontSize: 11 }}>
+          <div className="px-3 py-1 truncate" style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
             {menu.v.title}
           </div>
           {[
-            { label: menu.v.kind === "series" ? "Episodes…" : "▶ Play", run: () => open(menu.v) },
-            ...(menu.v.kind === "movie" ? [{ label: "▶ Play from start", run: () => void playVod(menu.v, true) }] : []),
+            { icon: menu.v.kind === "series" ? ("list" as const) : ("play" as const), label: menu.v.kind === "series" ? "Episodes…" : "Play", run: () => open(menu.v) },
+            ...(menu.v.kind === "movie" ? [{ icon: "play" as const, label: "Play from start", run: () => void playVod(menu.v, true) }] : []),
             ...(menu.v.kind === "movie"
               ? [
                   {
-                    label: "⤓ Download (PRO)",
+                    icon: "download" as const,
+                    label: "Download (PRO)",
                     run: () =>
                       void ipc
                         .downloadItem("vod", menu.v.id)
@@ -144,9 +146,10 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
                   },
                 ]
               : []),
-            { label: "↺ Clear progress", run: () => void ipc.clearProgress("vod", menu.v.id).then(() => useApp.setState((s) => ({ listVersion: s.listVersion + 1 }))) },
+            { icon: "undo" as const, label: "Clear progress", run: () => void ipc.clearProgress("vod", menu.v.id).then(() => useApp.setState((s) => ({ listVersion: s.listVersion + 1 }))) },
           ].map((m) => (
-            <div key={m.label} className="px-3 py-1.5 cursor-default" style={{ fontSize: 12.5 }} onClick={() => { m.run(); setMenu(null); }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elev-2)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+            <div key={m.label} className="px-3 py-1.5 cursor-default flex items-center gap-2" style={{ fontSize: 12.5 }} onClick={() => { m.run(); setMenu(null); }} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elev-2)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+              <Icon name={m.icon} size={14} style={{ color: "var(--text-faint)" }} />
               {m.label}
             </div>
           ))}
@@ -221,10 +224,10 @@ function Poster({ v, selected, pct, onOpen, onMenu }: { v: VodRecord; selected: 
         e.preventDefault();
         onMenu(e.clientX, e.clientY);
       }}
-      title={v.description ?? v.title}
+      title={v.description ?? undefined}
     >
       <div className="art-wrap">
-        {ok && v.poster ? <img className="art" src={v.poster} loading="lazy" alt="" draggable={false} onError={() => setOk(false)} /> : <div className="art flex items-center justify-center" style={{ color: "var(--text-faint)", fontSize: 11, padding: 8, textAlign: "center" }}>{v.title}</div>}
+        {ok && v.poster ? <img className="art" src={v.poster} loading="lazy" alt="" draggable={false} onError={() => setOk(false)} /> : <div className="art flex items-center justify-center" style={{ color: "var(--text-faint)", fontSize: 11.5, padding: 8, textAlign: "center" }}>{v.title}</div>}
         {pct != null && pct > 0 && (
           <div className="prog">
             <div style={{ width: `${Math.min(100, pct * 100)}%` }} />
@@ -233,7 +236,7 @@ function Poster({ v, selected, pct, onOpen, onMenu }: { v: VodRecord; selected: 
       </div>
       <div className="title">{v.title}</div>
       <div className="meta">
-        {[v.year, v.rating ? `★ ${v.rating.toFixed(1)}` : null, v.duration_s ? fmtDuration(v.duration_s) : null, v.kind === "series" ? "series" : null].filter(Boolean).join(" · ")}
+        {[v.year, v.rating ? `${v.rating.toFixed(1)} ★` : null, v.duration_s ? fmtDuration(v.duration_s) : null, v.kind === "series" ? "series" : null].filter(Boolean).join(" · ")}
       </div>
     </div>
   );

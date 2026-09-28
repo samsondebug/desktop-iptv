@@ -32,7 +32,9 @@ export type RailSelection =
   | { kind: "favorites" }
   | { kind: "recents" }
   | { kind: "group"; title: string }
-  | { kind: "continue" };
+  | { kind: "continue" }
+  /** Recordings & downloads, shown in the bottom pane like any other destination. */
+  | { kind: "library" };
 
 export type Tab = "live" | "movies" | "series";
 
@@ -112,7 +114,6 @@ interface AppStore {
     vodSort: "added" | "title" | "year" | "rating";
     vodCategory: string | null;
     recordDialog: { channel: ChannelRecord; programme?: { start: number; stop: number; title: string } } | null;
-    libraryOpen: boolean;
   };
   setMini: (on: boolean) => Promise<void>;
   openPane: (channelId: number | null) => Promise<void>;
@@ -206,7 +207,6 @@ export const useApp = create<AppStore>((set, get) => ({
     vodSort: "added",
     vodCategory: null,
     recordDialog: null,
-    libraryOpen: false,
   },
 
   init: async () => {

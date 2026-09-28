@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ipc } from "../../lib/ipc";
 import { fmtDuration, useApp } from "../../lib/store";
 import Hud from "./Hud";
+import Icon from "../../components/Icon";
 
 const CHROME_HIDE_MS = 2600;
 
@@ -145,12 +146,12 @@ export default function PlayerPane() {
       {/* Mini mode: drag handle + exit */}
       {mini && (
         <div className="absolute top-0 left-0 right-0 flex items-center gap-1 px-2 fade-chrome" style={{ height: 30, background: "linear-gradient(rgba(0,0,0,0.6), transparent)" }} data-tauri-drag-region>
-          <span className="hud" data-tauri-drag-region style={{ fontFamily: "var(--font)", fontSize: 11 }}>
+          <span className="hud" data-tauri-drag-region style={{ fontFamily: "var(--font)", fontSize: 11.5 }}>
             {label}
           </span>
           <div className="flex-1" data-tauri-drag-region />
-          <button className="btn ghost" style={{ color: "white", padding: "0 6px" }} onClick={() => void setMini(false)} title="Back to the full window">
-            ⤢
+          <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void setMini(false)} title="Back to the full window" aria-label="Restore window">
+            <Icon name="maximize" size={14} />
           </button>
         </div>
       )}
@@ -195,15 +196,15 @@ export default function PlayerPane() {
               <span className="hud">{fmtDuration(telemetry.duration_s)}</span>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <button className="btn ghost" style={{ color: "white" }} onClick={() => void togglePause()} title="Pause / resume (space)">
-              {playback?.paused ? "▶" : "❚❚"}
+          <div className="flex items-center gap-1">
+            <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void togglePause()} title="Pause / resume (space)" aria-label="Pause">
+              <Icon name={playback?.paused ? "play" : "pause"} size={18} />
             </button>
-            <button className="btn ghost" style={{ color: "white" }} onClick={() => void stop()} title="Stop">
-              ■
+            <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void stop()} title="Stop" aria-label="Stop">
+              <Icon name="stop" size={16} />
             </button>
-            <button className="btn ghost" style={{ color: "white" }} onClick={() => void toggleMute()} title="Mute (m)">
-              {playback?.muted || playback?.volume === 0 ? "🔇" : "🔊"}
+            <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void toggleMute()} title="Mute (m)" aria-label="Mute">
+              <Icon name={playback?.muted || playback?.volume === 0 ? "muted" : (playback?.volume ?? 100) < 50 ? "volumeLow" : "volume"} size={18} />
             </button>
             {!mini && (
               <>
@@ -213,7 +214,7 @@ export default function PlayerPane() {
                   max={130}
                   value={playback?.muted ? 0 : (playback?.volume ?? 100)}
                   onChange={(e) => void setVolume(Number(e.target.value))}
-                  style={{ width: 120, accentColor: "var(--accent)" }}
+                  style={{ width: 110, accentColor: "var(--accent)" }}
                   title="Volume (up to 130%)"
                 />
                 <span className="hud" style={{ minWidth: 44, textAlign: "center" }}>
@@ -235,38 +236,40 @@ export default function PlayerPane() {
               </div>
             )}
             {currentChannel && !mini && (
-              <button className="btn ghost" style={{ color: isFav ? "var(--warn)" : "white" }} onClick={() => void toggleFavorite(currentChannel)} title="Favorite">
-                {isFav ? "★" : "☆"}
+              <button className="btn ghost icon" style={{ color: isFav ? "var(--warn)" : "white" }} onClick={() => void toggleFavorite(currentChannel)} title={isFav ? "Remove from favorites" : "Add to favorites"} aria-label="Favorite">
+                <Icon name={isFav ? "starFilled" : "star"} size={17} />
               </button>
             )}
             {currentChannel && !mini && (
               <button
-                className="btn ghost"
+                className="btn ghost icon"
                 style={{ color: activeRecordings > 0 ? "var(--live)" : "white" }}
                 onClick={() => window.dispatchEvent(new CustomEvent("diptv:record", { detail: currentChannel }))}
-                title={activeRecordings > 0 ? `Recording (${activeRecordings} active) — open Library to stop` : "Record this channel (PRO)"}
+                title={activeRecordings > 0 ? `Recording (${activeRecordings} active) — see Recordings & downloads to stop` : "Record this channel (r · PRO)"}
+                aria-label="Record"
               >
-                ●
+                <Icon name="record" size={16} />
               </button>
             )}
+            {!mini && <span style={{ width: 1, height: 18, background: "rgba(255,255,255,0.18)", margin: "0 4px" }} />}
             {!mini && (
-              <button className="btn ghost" style={{ color: "white" }} onClick={() => void setMini(true)} title="Mini player (always on top)">
-                ⧉
+              <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void setMini(true)} title="Mini player, always on top (i)" aria-label="Mini player">
+                <Icon name="pip" size={17} />
               </button>
             )}
             {!mini && !isVod && (
-              <button className="btn ghost" style={{ color: "white" }} onClick={() => void openPane(currentChannel?.id ?? null)} title="Open another pane (multiscreen, PRO)">
-                ⊞
+              <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void openPane(currentChannel?.id ?? null)} title="Open another pane (multiscreen · PRO)" aria-label="Multiscreen pane">
+                <Icon name="panes" size={17} />
               </button>
             )}
             {!mini && (
-              <button className="btn ghost" style={{ color: "white" }} onClick={() => void ipc.openInExternalPlayer().catch(() => {})} title="Open in external player (mpv/VLC via the OS)">
-                ↗
+              <button className="btn ghost icon" style={{ color: "white" }} onClick={() => void ipc.openInExternalPlayer().catch(() => {})} title="Open in the system's default player (mpv/VLC)" aria-label="Open externally">
+                <Icon name="external" size={16} />
               </button>
             )}
             {!mini && (
-              <button className="btn ghost" style={{ color: "white" }} onClick={() => setUi({ fullscreen: !ui.fullscreen })} title="Fullscreen (f)">
-                {ui.fullscreen ? "⤡" : "⤢"}
+              <button className="btn ghost icon" style={{ color: "white" }} onClick={() => setUi({ fullscreen: !ui.fullscreen })} title="Fullscreen (f)" aria-label="Fullscreen">
+                <Icon name={ui.fullscreen ? "minimize" : "maximize"} size={17} />
               </button>
             )}
           </div>

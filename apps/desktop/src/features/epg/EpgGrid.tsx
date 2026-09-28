@@ -10,9 +10,10 @@ import { ipc, type ChannelRecord, type Programme } from "../../lib/ipc";
 import { EPG_SHIFT, LIST_ENTER, LIST_MOVE } from "../../lib/keys";
 import { fmtTime, useApp } from "../../lib/store";
 import { useChannelSource } from "../live/useChannelSource";
+import Icon, { type IconName } from "../../components/Icon";
 
 const ROW_H = 52;
-const CH_COL_W = 220;
+const CH_COL_W = 236;
 const WINDOW_HOURS_OPTIONS = [4, 8, 12];
 
 interface Hover {
@@ -183,7 +184,7 @@ export default function EpgGrid() {
     <div className="h-full flex flex-col" onMouseLeave={() => setHover(null)}>
       <div className="flex items-center gap-2 px-3 py-1.5 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
         <div className="font-semibold truncate">{title}</div>
-        <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11 }}>
+        <div style={{ color: "var(--text-faint)", fontFamily: "var(--mono)", fontSize: 11.5 }}>
           {src.loading ? "…" : src.count.toLocaleString()}
           {epgStats && epgStats.programmes > 0 && ` · guide ${epgStats.channels_with_epg.toLocaleString()} ch`}
           {guideImporting && ` · Guide importing ${importing?.message ?? ""} (${importing?.channels.toLocaleString()} programmes)`}
@@ -198,13 +199,13 @@ export default function EpgGrid() {
           </button>
         </div>
         <button className="btn ghost" onClick={() => shift(-2)} title="Earlier (←)">
-          ◀
+          <Icon name="chevronLeft" size={16} />
         </button>
         <button className="btn ghost" onClick={jumpNow} title="Jump to now">
           Now
         </button>
         <button className="btn ghost" onClick={() => shift(2)} title="Later (→)">
-          ▶
+          <Icon name="chevronRight" size={16} />
         </button>
         <select className="input" style={{ width: 72 }} value={hours} onChange={(e) => setHours(Number(e.target.value))} title="Window">
           {WINDOW_HOURS_OPTIONS.map((h) => (
@@ -227,14 +228,14 @@ export default function EpgGrid() {
 
       {/* time axis */}
       <div className="relative shrink-0 border-b" style={{ height: 24, borderColor: "var(--border)", background: "var(--bg-elev)" }}>
-        <div className="absolute left-0 top-0 bottom-0 flex items-center px-3" style={{ width: CH_COL_W, color: "var(--text-faint)", fontSize: 11 }}>
+        <div className="absolute left-0 top-0 bottom-0 flex items-center px-3" style={{ width: CH_COL_W, color: "var(--text-faint)", fontSize: 11.5 }}>
           {new Date(windowStart * 1000).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
         </div>
         {ticks.map((t) => (
           <div
             key={t}
             className="absolute top-0 bottom-0 border-l"
-            style={{ left: CH_COL_W + (t - windowStart) * pxPerSec, borderColor: "var(--border)", color: "var(--text-dim)", fontSize: 11, paddingLeft: 4, lineHeight: "24px", fontFamily: "var(--mono)" }}
+            style={{ left: CH_COL_W + (t - windowStart) * pxPerSec, borderColor: "var(--border)", color: "var(--text-dim)", fontSize: 11.5, paddingLeft: 4, lineHeight: "24px", fontFamily: "var(--mono)" }}
           >
             {fmtTime(t)}
           </div>
@@ -333,31 +334,33 @@ export default function EpgGrid() {
 
       {menu && (
         <div className="fixed z-50 panel rounded-md py-1" style={{ left: menu.x, top: menu.y, minWidth: 200 }} onClick={(e) => e.stopPropagation()}>
-          <div className="px-3 py-1 truncate" style={{ color: "var(--text-faint)", fontSize: 11 }}>
+          <div className="px-3 py-1 truncate" style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
             {menu.ch.name}
           </div>
-          <MenuItem label="▶ Play" onClick={() => { void play(menu.ch); setMenu(null); }} />
-          <MenuItem label={favoriteIds.has(menu.ch.id) ? "★ Remove favorite" : "☆ Add favorite"} onClick={() => { void toggleFavorite(menu.ch); setMenu(null); }} />
-          <MenuItem label="✎ Edit EPG (tvg-id)" onClick={() => { setUi({ epgEditChannel: menu.ch }); setMenu(null); }} />
+          <MenuItem icon="play" label="Play" onClick={() => { void play(menu.ch); setMenu(null); }} />
+          <MenuItem icon={favoriteIds.has(menu.ch.id) ? "starFilled" : "star"} label={favoriteIds.has(menu.ch.id) ? "Remove favorite" : "Add favorite"} onClick={() => { void toggleFavorite(menu.ch); setMenu(null); }} />
+          <MenuItem icon="edit" label="Edit EPG (tvg-id)" onClick={() => { setUi({ epgEditChannel: menu.ch }); setMenu(null); }} />
           {menu.p && (
             <MenuItem
-              label={`● Record “${menu.p.title.slice(0, 28)}${menu.p.title.length > 28 ? "…" : ""}”`}
+              icon="record"
+              label={`Record “${menu.p.title.slice(0, 28)}${menu.p.title.length > 28 ? "…" : ""}”`}
               onClick={() => {
                 window.dispatchEvent(new CustomEvent("diptv:record", { detail: { channel: menu.ch, programme: { start: menu.p!.start, stop: menu.p!.stop, title: menu.p!.title } } }));
                 setMenu(null);
               }}
             />
           )}
-          <MenuItem label="● Record now…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
+          <MenuItem icon="record" label="Record now…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
         </div>
       )}
     </div>
   );
 }
 
-function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
+function MenuItem({ icon, label, onClick }: { icon: IconName; label: string; onClick: () => void }) {
   return (
-    <div className="px-3 py-1.5 cursor-default" style={{ fontSize: 12.5 }} onClick={onClick} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elev-2)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+    <div className="px-3 py-1.5 cursor-default flex items-center gap-2" style={{ fontSize: 12.5 }} onClick={onClick} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elev-2)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+      <Icon name={icon} size={14} style={{ color: "var(--text-faint)" }} />
       {label}
     </div>
   );
