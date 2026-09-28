@@ -4,10 +4,13 @@ Last updated: 2026-09-27. Six commits, ~15.6k lines of Rust across 5 crates (90 
 `-D warnings` clean, `cargo fmt` clean), ~5.4k lines of TypeScript/React (tsc + vite green),
 105 Tauri commands.
 
-Everything below was verified on Linux (Xvfb, real libmpv 0.37 for playback / headless tests,
-stub engine for UI screenshots) against the mock Xtream + Stalker panel in `fixtures/`. The
-Windows and macOS builds have **not** been run on real hardware yet — that is the first thing to do
-on Dave's PC (see "Next on a real machine").
+Verified on Linux (Xvfb, real libmpv 0.37, mock Xtream + Stalker panel in `fixtures/`) **and on
+Windows 11 with a real Xtream provider** (2026-09-28, RTX 4070 SUPER, 2560×1440): the NSIS installer
+built from Linux with `cargo-xwin` installed cleanly, libmpv 0.41 loaded from `lib/`, the transparent
+WebView2 chrome composites over the native mpv child window, sign-in → 4,951 channels + 25,777
+programmes + 10,578 VOD titles in ~8 s, zap 650–1,250 ms on the Stable profile, fullscreen, mini
+player, a second pane playing a different channel, and a tap recording that kept growing on its own
+connection after zapping away. macOS is still untested.
 
 ## Exit tests per phase (CLAUDE.md §12)
 
@@ -65,21 +68,42 @@ About & backup), Diagnostics, keyboard map, themes via CSS tokens.
 4. Passwords live in the SQLite `pass` column (file in the per-user app data dir) rather than the
    OS keychain — keychain integration is a follow-up; they never leave Rust unredacted.
 
-## Next on a real machine (Windows first)
+## Found on Windows and fixed the same day
 
-1. `scripts/fetch-libmpv.ps1`, then `npm run tauri dev` in `apps/desktop`. Confirm the transparent
-   WebView2 composites over the mpv child window (`win_zorder` pushes it to `HWND_BOTTOM`).
-2. Real provider: zap time, profile switch, HUD numbers, EPG offset, record + zap continuation,
-   download resume after a network drop, mini mode geometry after restart, two panes.
-3. Diagnostics on a bad URL: HTTP trace shows the redirect/HTML; probe shows the error; report has
-   no secrets (search it for the password before sharing).
-4. Tag `v0.1.0` and let `release.yml` produce the installers.
+* The app root painted its own background over the player pane: on Windows/macOS the webview is
+  *above* mpv (on Linux/X11 it is below), so the root is now transparent and every chrome region is
+  opaque on its own.
+* Embedded EIA-608 captions rendered as garbage over live channels → `sid=no` by default.
+* A live stream ending (provider node rotation, connection cap) left the player idle → ffmpeg-level
+  `reconnect_at_eof` / `reconnect_on_http_error=4xx,5xx` plus an app-level reconnect with backoff
+  (1/2/4/8/15 s, 10 attempts) and a notice in the UI; a tap recording continues on its own
+  connection across the reload.
+* No log file for support → `<app data>/desktop-iptv.log`, truncated per run, tail included in the
+  diagnostics report.
+* Cross-building from Linux: `cargo install cargo-xwin`, `apt install nsis`, then
+  `npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis` produces the
+  same installer the release workflow does (7 min on a laptop-class box).
+
+## Packaging (how this ships, compared with the established players)
+
+The installer is NSIS (`installMode: both` — per-user without UAC, or per-machine into
+`C:\Program Files`), bundling `lib/libmpv-2.dll` as a resource. The commercial reference app ships
+a full `mpv.exe` (117 MB) plus `ffmpeg.exe`/`ffprobe.exe` (200 MB) and drives mpv as a child
+process over IPC; this app links libmpv in-process (120 MB DLL, no IPC, zap in one call). What is
+still missing to match a store-quality release: code signing (Azure Trusted Signing or an OV cert —
+unsigned builds trip SmartScreen on download), the updater plugin + `latest.json`, a real icon and
+product name, and optionally an MSIX wrap for the Microsoft Store.
+
+## Next
+
+1. Code-sign the Windows build; add `tauri-plugin-updater`.
+2. macOS: run the DMG from `release.yml` once on real hardware (render API path may be needed).
+3. Tag `v0.1.0`.
 
 ## Known gaps
 
 * Linux/X11: the mpv child window occludes the GTK webview, so overlay chrome is not visible over
-  video (video plays). Needs the render-API path (GtkGLArea). Windows/macOS are not affected by
-  this specific issue.
+  video (video plays). Needs the render-API path (GtkGLArea). Windows is verified unaffected.
 * macOS: passes the `NSView*` as `wid`; §6.1 recommends the render API on an OpenGL/Metal view.
   Untested.
 * Stalker: no VOD, no portal EPG (add an XMLTV source), no catch-up; recordings only while the
