@@ -250,13 +250,15 @@ pub fn on_stream_change(app: &AppHandle, state: &AppState) {
         let app2 = app.clone();
         let _rt = tauri::async_runtime::handle();
         let _guard = _rt.inner().enter();
+        // The recorder counts only what *it* writes; the file already holds the tapped part.
+        let base = file_size(&job.path);
         let (control, join) = start_recording(
             job.stream_url.clone(),
             job.user_agent.clone(),
             job.path.clone(),
             deadline,
             Arc::new(move |bytes| {
-                let _ = app2.emit(EV_DVR, DvrEvent::RecordingProgress { id, bytes });
+                let _ = app2.emit(EV_DVR, DvrEvent::RecordingProgress { id, bytes: base + bytes });
             }),
         );
         job.kind = JobKind::Raw(control, join);
