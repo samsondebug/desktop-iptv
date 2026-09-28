@@ -46,4 +46,8 @@
 !macro NSIS_HOOK_PREINSTALL
   !insertmacro RemoveLegacyDesktopIptv HKLM
   !insertmacro RemoveLegacyDesktopIptv HKCU
+  ; An older per-user desktop-iptv uninstall could leave an empty folder with just its
+  ; uninstall.exe behind; sweep it (RMDir only removes the folder when it is empty).
+  Delete "$LOCALAPPDATA\desktop-iptv\uninstall.exe"
+  RMDir "$LOCALAPPDATA\desktop-iptv"
 !macroend

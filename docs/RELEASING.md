@@ -8,7 +8,7 @@ How a version gets from `main` to a link friends can click.
 |---|---|---|
 | `release.yml` | `.github/workflows/` | On a `v*` tag: builds Windows (NSIS + MSI), macOS (Apple Silicon + Intel DMG) and Linux (deb + AppImage), signs the updater artifacts, publishes a GitHub release with `latest.json`. |
 | `pages.yml` | `.github/workflows/` | Publishes `site/` to GitHub Pages → `https://samsondebug.github.io/desktop-iptv/`. |
-| `site/index.html` | repo | The download page. Reads the latest release from the GitHub API, picks the visitor's OS, shows the legal block and install notes. Static — host it anywhere (Pages, Vercel, your own domain). |
+| `site/` | repo | The website: landing, `download/` (Windows / macOS Apple Silicon + Intel / Linux buttons filled from the GitHub API), guides, FAQ, privacy. `vercel.json` + `api/download.js` add the `sktv.app/download/{windows,mac,mac-intel,linux,linux-deb,linux-rpm,windows-msi}` short links (302 to the newest matching asset, edge-cached 10 min). Regenerated pages are plain HTML — edit them directly. |
 | Updater | `tauri-plugin-updater`, `src/lib/updater.ts` | Installed copies fetch `https://github.com/samsondebug/desktop-iptv/releases/latest/download/latest.json` 12 s after start and every 6 h, verify the minisign signature against `plugins.updater.pubkey` in `tauri.conf.json`, and offer "Install & restart" (Settings → About has a manual check). |
 
 ## What exists (set up 2026-09-28)
@@ -16,7 +16,7 @@ How a version gets from `main` to a link friends can click.
 | Thing | Value |
 |---|---|
 | GitHub repo | `samsondebug/desktop-iptv` (public) — Pages source: GitHub Actions |
-| Download page | https://samsondebug.github.io/desktop-iptv/ |
+| Website | https://sktv.app (Vercel project `sktv`, `site/` folder, function `api/download.js` for `/download/<os>`) — static mirror on GitHub Pages: https://samsondebug.github.io/desktop-iptv/ |
 | Azure subscription | `desktop-iptv` (pay-as-you-go, MCA billing account "David Krouskoff") |
 | Artifact Signing account | `krouskoffsigning`, resource group `desktop-iptv-signing`, East US, Basic — endpoint `https://eus.codesigning.azure.net` |
 | Identity validation | Individual, Public — `CN=David Krouskoff, L=Austin, S=TX, C=US` |

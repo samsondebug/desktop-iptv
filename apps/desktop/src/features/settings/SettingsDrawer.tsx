@@ -22,7 +22,6 @@ const TABS: { id: ReturnType<typeof useApp.getState>["ui"]["settingsTab"]; label
   { id: "playlists", label: "Playlists" },
   { id: "guide", label: "Guide" },
   { id: "parental", label: "Parental" },
-  { id: "license", label: "License" },
   { id: "about", label: "About & backup" },
 ];
 
@@ -111,7 +110,7 @@ export default function SettingsDrawer() {
         {tab === "playlists" && <PlaylistsTab draft={draft} set={set} />}
         {tab === "guide" && <GuideTab />}
         {tab === "parental" && <ParentalTab />}
-        {tab === "license" && <LicenseTab />}
+        {tab === "license" && <LicenseTab />}{/* reachable only by deep link; SKTV is free for everyone */}
         {tab === "about" && <AboutTab />}
       </div>
     </div>

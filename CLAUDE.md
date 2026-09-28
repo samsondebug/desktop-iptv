@@ -71,7 +71,7 @@ Defensive engineering from the deck:
 - 4 simultaneous streams trip cheap-plan connection caps → hard-limit N, warn, prefer copy hwdec on multi-pane so iGPUs survive.
 - Users will demand zero latency → refuse in copy; document provider segment windows.
 
-Monetization from the deck: 72-hour full trial on first import. ~$13 lifetime. Token check in Rust, never JS. No subscription in v1. No analytics by default.
+Monetization from the deck: 72-hour full trial on first import. ~$13 lifetime. Token check in Rust, never JS. No subscription in v1. No analytics by default. **Owner's decision (0.2.1): SKTV is free for everyone — `app_core::license::FREE_FOR_EVERYONE = true` reports `pro_lifetime` for every install; the trial/token code stays behind that switch.**
 
 ---
 

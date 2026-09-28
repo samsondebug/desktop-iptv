@@ -14,10 +14,11 @@ function Clock() {
 function TierBadge() {
   const license = useApp((s) => s.license);
   const setUi = useApp((s) => s.setUi);
-  if (!license) return null;
+  // Free for everyone: every install reports pro_lifetime, so there is nothing to badge.
+  if (!license || license.tier === "pro_lifetime") return null;
   const hoursLeft = license.expires_at ? Math.max(0, Math.round((license.expires_at * 1000 - Date.now()) / 36e5)) : null;
-  const label = license.tier === "pro_lifetime" ? "PRO" : license.tier === "trial" ? (hoursLeft != null ? `TRIAL · ${hoursLeft}h` : "TRIAL") : "FREE";
-  const color = license.tier === "pro_lifetime" ? "var(--accent-2)" : license.tier === "trial" ? "var(--accent)" : "var(--text-faint)";
+  const label = license.tier === "trial" ? (hoursLeft != null ? `TRIAL · ${hoursLeft}h` : "TRIAL") : "FREE";
+  const color = license.tier === "trial" ? "var(--accent)" : "var(--text-faint)";
   return (
     <span
       title={license.tier === "trial" ? "Full PRO features for 72 hours after your first import" : license.tier === "free" ? "Unlock PRO in Settings → License" : undefined}

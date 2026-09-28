@@ -97,12 +97,30 @@ pub fn verify_token(token: &str, machine_guid: &str) -> Option<Tier> {
     }
 }
 
+/// SKTV is free for everyone (owner's decision, 0.2.1): every install reports `pro_lifetime`
+/// and nothing is gated. The trial/token machinery below is kept intact behind this switch so a
+/// paid tier can be turned back on without re-plumbing anything.
+pub const FREE_FOR_EVERYONE: bool = true;
+
 /// Compute the effective license state.
 ///
 /// * `now` — unix seconds
 /// * `trial_started_at` — unix seconds of the first successful playlist import, if any
 /// * `stored_token` — the token in `settings`, if any
 pub fn compute_state(
+    now: i64,
+    trial_started_at: Option<i64>,
+    stored_token: Option<&str>,
+    machine_guid: &str,
+) -> LicenseStateResponse {
+    if FREE_FOR_EVERYONE {
+        return LicenseStateResponse { is_valid: true, expires_at: None, tier: Tier::ProLifetime.as_str().into() };
+    }
+    compute_state_gated(now, trial_started_at, stored_token, machine_guid)
+}
+
+/// The trial → free → PRO state machine (used when [`FREE_FOR_EVERYONE`] is off).
+pub fn compute_state_gated(
     now: i64,
     trial_started_at: Option<i64>,
     stored_token: Option<&str>,
@@ -223,15 +241,15 @@ mod tests {
     #[test]
     fn trial_clock() {
         let m = "m";
-        let s = compute_state(1000, None, None, m);
+        let s = compute_state_gated(1000, None, None, m);
         assert_eq!(s.tier, "trial");
-        let s = compute_state(1000, Some(500), None, m);
+        let s = compute_state_gated(1000, Some(500), None, m);
         assert_eq!(s.tier, "trial");
         assert_eq!(s.expires_at, Some(500 + TRIAL_SECONDS));
-        let s = compute_state(500 + TRIAL_SECONDS + 1, Some(500), None, m);
+        let s = compute_state_gated(500 + TRIAL_SECONDS + 1, Some(500), None, m);
         assert_eq!(s.tier, "free");
         let tok = issue_lifetime_token(m, 1);
-        let s = compute_state(999_999_999, Some(500), Some(&tok), m);
+        let s = compute_state_gated(999_999_999, Some(500), Some(&tok), m);
         assert_eq!(s.tier, "pro_lifetime");
     }
 

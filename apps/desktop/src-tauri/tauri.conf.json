@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SKTV",
-  "version": "0.2.0",
+  "mainBinaryName": "SKTV",
+  "version": "0.2.1",
   "identifier": "dev.desktopiptv.app",
   "build": {
     "beforeDevCommand": "npm run dev",

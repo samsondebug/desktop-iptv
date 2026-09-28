@@ -118,6 +118,13 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
   desktop-iptv (per-machine or per-user) before SKTV installs, so the 0.1.0 → 0.2.0 self-update
   ends with one copy. `bundle.publisher` is now "David Krouskoff" (Add/Remove showed
   "desktopiptv").
+* **v0.2.1 — free for everyone + website.** `license::FREE_FOR_EVERYONE = true`: every install
+  reports `pro_lifetime`, no trial clock, no gating; the tier badge and the License tab are hidden
+  (the token machinery stays behind the switch). `mainBinaryName: "SKTV"` — the exe is
+  `SKTV.exe` (the NSIS template migrates shortcuts from `desktop-iptv.exe` via the
+  `MainBinaryName` registry value). `site/` is now a multi-page website (landing, download with
+  Windows/macOS/Linux buttons, guides, FAQ, privacy) deployed to Vercel as sktv.app, with
+  `api/download.js` serving `/download/<os>` short links; GitHub Pages keeps the static copy.
 
 ## Next
 
