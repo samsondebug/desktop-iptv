@@ -36,6 +36,10 @@
     DeleteRegKey ${ROOT} "Software\Microsoft\Windows\CurrentVersion\Uninstall\desktop-iptv"
     DeleteRegKey ${ROOT} "Software\desktopiptv\desktop-iptv"
     DeleteRegKey /ifempty ${ROOT} "Software\desktopiptv"
+    ; The self-updater runs us with /UPDATE, which makes the template skip creating shortcuts
+    ; (it assumes the previous version's are still there). The old uninstaller just deleted
+    ; desktop-iptv's, so treat the rest of this install as a fresh one: SKTV gets its own.
+    StrCpy $UpdateMode 0
   ${EndIf}
 !macroend
 

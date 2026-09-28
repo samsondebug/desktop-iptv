@@ -131,7 +131,9 @@ platform/arch and do not care. Kept as they were, deliberately:
 
 NSIS keys the uninstall entry and the install folder on the product name, so the stock
 "previous version" logic cannot see a desktop-iptv install; `src-tauri/nsis/hooks.nsh`
-(`NSIS_HOOK_PREINSTALL`) runs the old uninstaller silently (HKLM and HKCU) before SKTV installs.
+(`NSIS_HOOK_PREINSTALL`) runs the old uninstaller silently (HKLM and HKCU) before SKTV installs
+and then clears `$UpdateMode`, because the self-updater's `/UPDATE` flag makes the template skip
+shortcut creation (it assumes the previous version's shortcuts survive — desktop-iptv's do not).
 A silent NSIS uninstall never deletes app data. Old installs self-update into SKTV: 0.1.0 asks for
 `windows-x86_64-nsis`, downloads `SKTV_0.2.0_x64-setup.exe`, the hook removes desktop-iptv,
 SKTV lands in `Program Files\SKTV` with the same data.
