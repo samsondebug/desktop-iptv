@@ -113,7 +113,9 @@ jobs:
         id: acs
         shell: pwsh
         env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
@@ -125,6 +127,16 @@ jobs:
           }
           $endpoint = if ($env:AZURE_SIGNING_ENDPOINT) { $env:AZURE_SIGNING_ENDPOINT } else { "https://eus.codesigning.azure.net" }
           cargo install artifact-signing-cli --locked
+          # Preflight: sign a throwaway copy of a system exe so a broken credential, role, endpoint or
+          # SDK path fails here with the CLI's full output (tauri only logs it at debug level).
+          Write-Host "az: $(Get-Command az -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)"
+          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "SDK: $($_.Name)" }
+          $probe = Join-Path $env:RUNNER_TEMP "signprobe.exe"
+          Copy-Item "$env:SystemRoot\System32\where.exe" $probe
+          artifact-signing-cli -e $endpoint -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d "desktop-iptv sign probe" $probe
+          if ($LASTEXITCODE -ne 0) { throw "artifact-signing-cli preflight failed (exit $LASTEXITCODE) - see output above" }
+          $sig = Get-AuthenticodeSignature $probe
+          Write-Host "Probe signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
           $cmd = "artifact-signing-cli -e $endpoint -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d desktop-iptv %1"
           $overlay = @{ bundle = @{ windows = @{ signCommand = $cmd } } } | ConvertTo-Json -Depth 5 -Compress
           $path = Join-Path $env:RUNNER_TEMP "sign.conf.json"
