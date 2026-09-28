@@ -1,0 +1,128 @@
+name: release
+
+# Builds installers for Windows (NSIS + MSI), macOS (.dmg, Apple Silicon + Intel) and Linux
+# (.deb + .AppImage) and attaches them to a draft GitHub release.
+#
+# Trigger: push a tag `v*` (e.g. `git tag v0.1.0 && git push --tags`) or run it by hand.
+#
+# libmpv:
+#   * Windows — scripts/fetch-libmpv.ps1 downloads libmpv-2.dll (shinchiro mpv-winbuild-cmake
+#     releases, or $LIBMPV_DEV_URL / repo variable LIBMPV_DEV_URL to pin one) into src-tauri/lib,
+#     which tauri.conf.json bundles as a resource.
+#   * macOS — scripts/fetch-libmpv-macos.sh copies Homebrew's libmpv + deps into src-tauri/lib and
+#     rewrites install names (@loader_path). Unsigned: users right-click → Open on first launch
+#     until APPLE_* signing secrets are configured (see tauri-action docs).
+#   * Linux — .deb depends on libmpv2; AppImage users need libmpv2 installed (loaded at runtime).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+            args: ""
+          - name: macos-arm64
+            os: macos-latest
+            args: "--target aarch64-apple-darwin"
+            target: aarch64-apple-darwin
+          - name: macos-x64
+            os: macos-13
+            args: "--target x86_64-apple-darwin"
+            target: x86_64-apple-darwin
+          - name: linux-x64
+            os: ubuntu-22.04
+            args: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev \
+            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev pkg-config libssl-dev patchelf \
+            libmpv2 libmpv-dev
+
+      - name: libmpv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LIBMPV_DEV_URL: ${{ vars.LIBMPV_DEV_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/fetch-libmpv.ps1
+
+      - name: libmpv (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install mpv
+          ./scripts/fetch-libmpv-macos.sh
+
+      - name: Frontend deps
+        run: npm ci
+        working-directory: apps/desktop
+
+      - name: Build + package
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional signing (leave unset for unsigned builds):
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: "desktop-iptv ${{ github.ref_name }}"
+          releaseBody: |
+            Player-only IPTV client. This app does not provide channels, playlists, or stream URLs — you bring your own source.
+
+            * Windows: `.exe` (NSIS) or `.msi`, bundles libmpv.
+            * macOS: `.dmg` per architecture, bundles libmpv (unsigned unless signing secrets are set — right-click → Open once).
+            * Linux: `.deb` (depends on libmpv2) or `.AppImage` (install libmpv2 with your package manager).
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: ${{ matrix.args }}
+
+      - name: Upload bundles (manual runs)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-iptv-${{ matrix.name }}
+          if-no-files-found: warn
+          path: |
+            target/release/bundle/**/*.exe
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.AppImage
+            target/*/release/bundle/**/*.dmg

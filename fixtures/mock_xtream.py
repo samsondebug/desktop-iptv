@@ -5,7 +5,8 @@
 
 Serves player_api.php (auth, categories, live/vod/series lists, series_info), xmltv.php (EPG for
 the first 200 channels, 3 days), get.php (M3U), and /live|/movie|/series/<u>/<p>/<id>.<ext>
-(all mapped to the same local MPEG-TS file so playback works offline).
+(all mapped to the same local MPEG-TS file so playback works offline), plus /portal.php — a tiny
+Stalker/Ministra portal (MAC 00:1A:79:12:34:56, 60 channels, create_link → the same stream).
 Credentials: user / pass. Everything is synthetic.
 """
 import gzip
@@ -21,6 +22,7 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
 LIVE_KBPS = int(os.environ.get("MOCK_LIVE_KBPS", "8000"))
 MEDIA = sys.argv[2] if len(sys.argv) > 2 else None
 USER, PASS = "user", "pass"
+STALKER_TOKEN = "mock-stalker-token"
 N_LIVE, N_MOVIES, N_SERIES = 1000, 240, 24
 LIVE_CATS = ["US | News", "US | Sports", "UK | Entertainment", "FR | Général", "DE | Sport", "Kids", "Música", "24/7", "Adult XXX"]
 VOD_CATS = ["Action", "Comedy", "Drama", "Sci-Fi", "Documentary", "Kids"]
@@ -115,6 +117,34 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def stalker(self, q):
+        """Minimal Stalker/Ministra portal: MAC cookie 00:1A:79:12:34:56, bearer token after
+        handshake, genres, get_all_channels (first 60 channels), create_link → local live stream."""
+        cookie = self.headers.get("Cookie", "")
+        if "mac=00%3A1A%3A79%3A12%3A34%3A56" not in cookie and "mac=00:1A:79:12:34:56" not in cookie:
+            return self.send(200, b"Authorization failed", "text/plain")
+        kind, action = q.get("type", [""])[0], q.get("action", [""])[0]
+        if kind == "stb" and action == "handshake":
+            return self.send(200, json.dumps({"js": {"token": STALKER_TOKEN, "random": "r"}}).encode())
+        if self.headers.get("Authorization", "") != f"Bearer {STALKER_TOKEN}":
+            return self.send(403, b"", "text/plain")
+        if kind == "stb" and action == "get_profile":
+            return self.send(200, json.dumps({"js": {"id": 7, "default_timezone": "UTC", "status": 0}}).encode())
+        if kind == "account_info":
+            return self.send(200, json.dumps({"js": {"phone": "Expires: 2027-06-30", "mac": "00:1A:79:12:34:56"}}).encode())
+        if kind == "itv" and action == "get_genres":
+            return self.send(200, json.dumps({"js": [{"id": str(i + 1), "title": LIVE_CATS[i]} for i in range(len(LIVE_CATS))]}).encode())
+        if kind == "itv" and action == "get_all_channels":
+            data = [{"id": str(i), "name": f"Portal Chännel {i}", "number": str(i), "cmd": f"ffmpeg http://localhost/ch/{i}_",
+                     "tv_genre_id": str((i % len(LIVE_CATS)) + 1), "logo": "", "xmltv_id": f"ch{i}.mock", "archive": "0"}
+                    for i in range(1, 61)]
+            return self.send(200, json.dumps({"js": {"data": data}}).encode())
+        if kind == "itv" and action == "create_link":
+            cmd = q.get("cmd", [""])[0]
+            ch = cmd.rsplit("/", 1)[-1].rstrip("_") or "1"
+            return self.send(200, json.dumps({"js": {"id": ch, "cmd": f"ffmpeg http://127.0.0.1:{PORT}/live/{USER}/{PASS}/{ch}.ts?token=portal-{ch}"}}).encode())
+        return self.send(200, json.dumps({"js": {}}).encode())
+
     def stream_live(self):
         """Loop the sample file forever as a chunked live stream, paced at LIVE_KBPS (like a real
         8 Mbps channel) so recorders/downloaders behave as they would against a provider."""
@@ -140,6 +170,8 @@ class H(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
         q = parse_qs(u.query)
+        if u.path == "/portal.php":
+            return self.stalker(q)
         if u.path == "/player_api.php":
             if q.get("username", [""])[0] != USER or q.get("password", [""])[0] != PASS:
                 return self.send(200, json.dumps({"user_info": {"auth": 0, "status": "Disabled"}}).encode())

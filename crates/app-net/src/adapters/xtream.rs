@@ -203,7 +203,12 @@ impl XtreamClient {
         if user.is_empty() || pass.is_empty() {
             return Err(NetError::Other("Xtream username and password are required".into()));
         }
-        Ok(Self { http: HttpClient::new(user_agent)?, base, user: user.to_string(), pass: pass.to_string() })
+        Ok(Self {
+            http: HttpClient::new(user_agent)?.with_kind("xtream-api"),
+            base,
+            user: user.to_string(),
+            pass: pass.to_string(),
+        })
     }
 
     /// Normalised base, e.g. `http://host:8080` or `https://host/panel`.

@@ -161,7 +161,7 @@ fn window_id(window: &tauri::WebviewWindow) -> Option<i64> {
 
 /// Open a new pane window with its own engine. Returns the window label.
 #[tauri::command]
-pub fn pane_open(app: AppHandle, state: State<'_, AppState>, channel_id: Option<i64>) -> CmdResult<PaneInfo> {
+pub async fn pane_open(app: AppHandle, state: State<'_, AppState>, channel_id: Option<i64>) -> CmdResult<PaneInfo> {
     require_feature(&state, Feature::Multiscreen, "Multiscreen")?;
     let cfg = state.db.load_config().map_err(err)?;
     let count = state.panes.lock().unwrap().len();
@@ -232,27 +232,26 @@ pub fn pane_open(app: AppHandle, state: State<'_, AppState>, channel_id: Option<
         }
     });
     if let Some(id) = channel_id {
-        pane_play_inner(&state, &label, id)?;
+        pane_play_inner(&state, &label, id).await?;
     }
     let _ = app.emit("panes_changed", pane_infos(&state));
     Ok(pane_infos(&state).into_iter().find(|p| p.label == label).unwrap())
 }
 
-fn pane_play_inner(state: &AppState, label: &str, channel_id: i64) -> CmdResult<()> {
+async fn pane_play_inner(state: &AppState, label: &str, channel_id: i64) -> CmdResult<()> {
     let ch = state.db.get_channel(channel_id).map_err(err)?;
+    let url = super::playback::resolve_stream_url(state, &ch).await?;
     let mut panes = state.panes.lock().unwrap();
     let pane = panes.get_mut(label).ok_or("pane not found")?;
-    pane.engine
-        .load(&ch.stream_url, app_core::ProfileMode::Stable, if pane.has_audio { 100 } else { 0 }, None)
-        .map_err(err)?;
+    pane.engine.load(&url, app_core::ProfileMode::Stable, if pane.has_audio { 100 } else { 0 }, None).map_err(err)?;
     pane.playing = true;
     pane.channel_id = Some(channel_id);
     Ok(())
 }
 
 #[tauri::command]
-pub fn pane_play(app: AppHandle, state: State<'_, AppState>, label: String, channel_id: i64) -> CmdResult<()> {
-    pane_play_inner(&state, &label, channel_id)?;
+pub async fn pane_play(app: AppHandle, state: State<'_, AppState>, label: String, channel_id: i64) -> CmdResult<()> {
+    pane_play_inner(&state, &label, channel_id).await?;
     let _ = app.emit("panes_changed", pane_infos(&state));
     Ok(())
 }

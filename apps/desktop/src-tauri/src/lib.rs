@@ -187,6 +187,16 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            // backup
+            commands::backup_export,
+            commands::backup_inspect,
+            commands::backup_import,
+            // diagnostics
+            commands::diag_http_trace,
+            commands::diag_clear_trace,
+            commands::diag_probe,
+            commands::diag_check_source,
+            commands::diag_report,
             // bootstrap / config / license / theme
             commands::get_bootstrap,
             commands::get_config,

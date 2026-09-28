@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { ipc, type ConfigPayload, type EpgSource, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
 
@@ -20,7 +21,7 @@ const TABS: { id: ReturnType<typeof useApp.getState>["ui"]["settingsTab"]; label
   { id: "guide", label: "Guide" },
   { id: "parental", label: "Parental" },
   { id: "license", label: "License" },
-  { id: "about", label: "About" },
+  { id: "about", label: "About & backup" },
 ];
 
 export default function SettingsDrawer() {
@@ -105,7 +106,7 @@ export default function SettingsDrawer() {
         )}
 
         {tab === "interface" && <InterfaceTab draft={draft} set={set} />}
-        {tab === "playlists" && <PlaylistsTab />}
+        {tab === "playlists" && <PlaylistsTab draft={draft} set={set} />}
         {tab === "guide" && <GuideTab />}
         {tab === "parental" && <ParentalTab />}
         {tab === "license" && <LicenseTab />}
@@ -228,7 +229,7 @@ function InterfaceTab({ draft, set }: { draft: ConfigPayload; set: <K extends ke
 
 // ---------- Playlists ----------
 
-function PlaylistsTab() {
+function PlaylistsTab({ draft, set }: { draft: ConfigPayload; set: <K extends keyof ConfigPayload>(k: K, v: ConfigPayload[K]) => void }) {
   const playlists = useApp((s) => s.playlists);
   const reloadPlaylists = useApp((s) => s.reloadPlaylists);
   const pushToast = useApp((s) => s.pushToast);
@@ -248,6 +249,12 @@ function PlaylistsTab() {
   return (
     <section className="flex flex-col gap-2">
       {playlists.length === 0 && <div style={{ color: "var(--text-faint)" }}>None yet.</div>}
+      <label className="flex items-center gap-2 pb-2" style={{ fontSize: 12.5 }}>
+        <input type="checkbox" checked={draft.stalker_enabled} onChange={(e) => set("stalker_enabled", e.target.checked)} />
+        <span>
+          Experimental: Stalker / MAC portal sources <span style={{ color: "var(--text-faint)" }}>— live TV only; links are resolved at play time; no VOD/EPG yet</span>
+        </span>
+      </label>
       {playlists.map((p) => {
         const meta = metas[p.id];
         const acct: XtreamAccount | null = meta?.account_json ? (JSON.parse(meta.account_json) as XtreamAccount) : null;
@@ -581,10 +588,79 @@ function LicenseTab() {
   );
 }
 
+function BackupPanel() {
+  const pushToast = useApp((s) => s.pushToast);
+  const reloadPlaylists = useApp((s) => s.reloadPlaylists);
+  const [pass, setPass] = useState("");
+  const [mode, setMode] = useState<"merge" | "replace">("merge");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const weak = pass.length < 6;
+
+  const doExport = async () => {
+    const path = await save({ defaultPath: `desktop-iptv-backup-${new Date().toISOString().slice(0, 10)}.diptvbk`, filters: [{ name: "desktop-iptv backup", extensions: ["diptvbk"] }] });
+    if (!path) return;
+    setBusy(true);
+    try {
+      const r = await ipc.backupExport(path, pass);
+      setMsg(`Saved ${r.playlists} playlists, ${r.favorites} favorites, ${r.epg_overrides} EPG overrides (${(r.bytes / 1024).toFixed(1)} KB).`);
+      pushToast({ level: "info", title: "Backup saved", body: r.path });
+    } catch (e) {
+      setMsg(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const doImport = async () => {
+    const chosen = await open({ multiple: false, directory: false, filters: [{ name: "desktop-iptv backup", extensions: ["diptvbk"] }] });
+    if (typeof chosen !== "string") return;
+    setBusy(true);
+    try {
+      const peek = await ipc.backupInspect(chosen, pass);
+      const r = await ipc.backupImport(chosen, pass, mode === "replace");
+      await reloadPlaylists();
+      setMsg(`Restored ${r.playlists} of ${peek.playlists} playlists (${mode}); ${r.favorites} favorites and ${r.epg_overrides} EPG overrides will be applied as each playlist finishes syncing.`);
+      pushToast({ level: "info", title: "Backup restored", body: "Playlists are syncing now. Set the parental PIN again if you used one." });
+    } catch (e) {
+      setMsg(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="rounded-md p-3 flex flex-col gap-2" style={{ background: "var(--bg-elev-2)" }}>
+      <div className="font-semibold">Encrypted backup</div>
+      <div style={{ color: "var(--text-dim)", fontSize: 12 }}>
+        Playlists (with their logins), favorites, EPG sources/offsets/overrides, settings, theme tokens and parental keywords — sealed with AES-256-GCM and a
+        passphrase-derived key (Argon2id). The parental PIN and the license are machine-bound and are not included.
+      </div>
+      <div className="flex items-center gap-2">
+        <input className="input" type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="Passphrase (6+ characters)" style={{ width: 260 }} autoComplete="off" />
+        <button className="btn primary" disabled={weak || busy} onClick={() => void doExport()}>
+          Export…
+        </button>
+        <div className="seg">
+          <button className={mode === "merge" ? "on" : ""} onClick={() => setMode("merge")} title="Keep current playlists; skip duplicates">
+            Merge
+          </button>
+          <button className={mode === "replace" ? "on" : ""} onClick={() => setMode("replace")} title="Delete current playlists first">
+            Replace
+          </button>
+        </div>
+        <button className="btn" disabled={weak || busy} onClick={() => void doImport()}>
+          Import…
+        </button>
+      </div>
+      {msg && <div style={{ fontSize: 12, color: msg.startsWith("Saved") || msg.startsWith("Restored") ? "var(--accent-2)" : "var(--danger)" }}>{msg}</div>}
+    </div>
+  );
+}
+
 function AboutTab() {
   const boot = useApp((s) => s.boot)!;
   return (
     <section className="flex flex-col gap-3" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+      <BackupPanel />
       <div>{boot.legal_block}</div>
       <div style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--text-dim)" }}>
         {boot.product} {boot.version} · {boot.platform}

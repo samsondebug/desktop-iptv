@@ -32,6 +32,8 @@ export interface ConfigPayload {
   audio_delay_ms: number;
   stable_cache_secs: number; // 20..=60
   legal_accepted: boolean;
+  /** Experimental Stalker / MAC portal sources. */
+  stalker_enabled: boolean;
 }
 
 export interface ValidateLicenseCommand {
@@ -196,7 +198,8 @@ export interface Bootstrap {
 export type AddPlaylistSource =
   | { kind: "m3u_url"; url: string; user_agent: string | null; epg_url: string | null }
   | { kind: "m3u_file"; path: string; epg_url: string | null }
-  | { kind: "xtream"; base_url: string; username: string; password: string; stream_format: "ts" | "m3u8" | null; user_agent: string | null };
+  | { kind: "xtream"; base_url: string; username: string; password: string; stream_format: "ts" | "m3u8" | null; user_agent: string | null }
+  | { kind: "stalker"; portal_url: string; mac: string; user_agent: string | null; epg_url: string | null };
 
 export type PlaybackItem =
   | { kind: "none" }
@@ -410,6 +413,18 @@ export const ipc = {
   mediaDir: () => invoke<string>("media_dir"),
   setMediaDir: (path: string | null) => invoke<void>("set_media_dir", { path }),
 
+  // backup
+  backupExport: (path: string, passphrase: string) => invoke<BackupSummary>("backup_export", { path, passphrase }),
+  backupInspect: (path: string, passphrase: string) => invoke<BackupSummary>("backup_inspect", { path, passphrase }),
+  backupImport: (path: string, passphrase: string, replace: boolean) => invoke<BackupSummary>("backup_import", { path, passphrase, replace }),
+
+  // diagnostics
+  diagHttpTrace: () => invoke<HttpTrace[]>("diag_http_trace"),
+  diagClearTrace: () => invoke<void>("diag_clear_trace"),
+  diagProbe: (url: string, profile: ProfileMode | null, timeoutSecs: number | null) => invoke<ProbeResult>("diag_probe", { url, profile, timeoutSecs }),
+  diagCheckSource: (playlistId: number) => invoke<SourceCheck>("diag_check_source", { playlistId }),
+  diagReport: () => invoke<string>("diag_report"),
+
   // windows
   setMiniMode: (on: boolean) => invoke<boolean>("set_mini_mode", { on }),
   isMiniMode: () => invoke<boolean>("is_mini_mode"),
@@ -521,6 +536,80 @@ export interface MpvTrack {
   forced?: boolean;
 }
 
+// ---------- backup ----------
+
+export interface BackupSummary {
+  path: string;
+  bytes: number;
+  playlists: number;
+  favorites: number;
+  epg_overrides: number;
+  epg_sources: number;
+}
+
+// ---------- diagnostics ----------
+
+export interface HttpTrace {
+  id: number;
+  at_ms: number;
+  kind: string;
+  method: string;
+  url: string;
+  status: number | null;
+  elapsed_ms: number | null;
+  content_type: string | null;
+  content_length: number | null;
+  preview: string | null;
+  redirects: string[];
+  error: string | null;
+}
+
+export interface ProbeResult {
+  ok: boolean;
+  url: string;
+  profile: string;
+  engine: string;
+  elapsed_ms: number;
+  ttff_ms: number | null;
+  container: string | null;
+  video_codec: string | null;
+  audio_codec: string | null;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
+  hwdec: string | null;
+  cache_secs: number | null;
+  error: string | null;
+  log: string[];
+}
+
+export interface AccountInfo {
+  status: string | null;
+  exp_date: number | null;
+  max_connections: number | null;
+  active_connections: number | null;
+  server_timezone: string | null;
+}
+
+export interface SourceCheck {
+  playlist_id: number;
+  kind: string;
+  ok: boolean;
+  elapsed_ms: number;
+  status: number | null;
+  content_type: string | null;
+  content_length: number | null;
+  final_url: string | null;
+  payload: string | null;
+  preview: string | null;
+  entries: number;
+  entries_without_url: number;
+  groups: number;
+  epg_hint: string | null;
+  account: AccountInfo | null;
+  error: string | null;
+}
+
 // ---------- events ----------
 
 export const events = {
@@ -532,6 +621,8 @@ export const events = {
     listen<PlaybackState>("playback_state", (e) => cb(e.payload)),
   onDvr: (cb: (ev: DvrEvent) => void): Promise<UnlistenFn> => listen<DvrEvent>("dvr_event", (e) => cb(e.payload)),
   onPanesChanged: (cb: (panes: PaneInfo[]) => void): Promise<UnlistenFn> => listen<PaneInfo[]>("panes_changed", (e) => cb(e.payload)),
+  /** Favorites / overrides changed behind the UI's back (e.g. a restore finished applying). */
+  onCatalogChanged: (cb: (playlistId: number) => void): Promise<UnlistenFn> => listen<number>("catalog_changed", (e) => cb(e.payload)),
   onPaneEngine: (cb: (label: string, ev: EngineEvent) => void): Promise<UnlistenFn> =>
     listen<{ label: string; event: EngineEvent }>("engine_event_pane", (e) => cb(e.payload.label, e.payload.event)),
 };

@@ -3,7 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ipc, type AddPlaylistSource } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
 
-type Tab = "xtream" | "url" | "file";
+type Tab = "xtream" | "url" | "file" | "stalker";
 
 export default function AddPlaylistDialog() {
   const setUi = useApp((s) => s.setUi);
@@ -19,6 +19,9 @@ export default function AddPlaylistDialog() {
   const [user, setUser] = useState("");
   const [pass, setPass] = useState("");
   const [fmt, setFmt] = useState<"ts" | "m3u8">("ts");
+  const [portal, setPortal] = useState("");
+  const [mac, setMac] = useState("");
+  const stalkerEnabled = useApp((s) => s.config?.stalker_enabled ?? false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,13 +39,17 @@ export default function AddPlaylistDialog() {
       } else if (tab === "url") {
         if (!/^https?:\/\//i.test(url.trim())) throw new Error("Enter an http(s) URL to an .m3u / .m3u8 playlist.");
         source = { kind: "m3u_url", url: url.trim(), user_agent: ua.trim() || null, epg_url: epgUrl.trim() || null };
+      } else if (tab === "stalker") {
+        if (!/^https?:\/\//i.test(portal.trim())) throw new Error("Enter the portal URL, e.g. http://host/c/");
+        if (mac.replace(/[^0-9a-f]/gi, "").length !== 12) throw new Error("Enter the 12-digit MAC address, e.g. 00:1A:79:12:34:56");
+        source = { kind: "stalker", portal_url: portal.trim(), mac: mac.trim(), user_agent: ua.trim() || null, epg_url: epgUrl.trim() || null };
       } else {
         if (!path) throw new Error("Choose a playlist file.");
         source = { kind: "m3u_file", path, epg_url: epgUrl.trim() || null };
       }
       await ipc.addPlaylist(name, source);
       await reloadPlaylists();
-      pushToast({ level: "info", title: "Import started", body: tab === "xtream" ? "Signing in, then channels → guide → library." : "Channels appear as they are indexed." });
+      pushToast({ level: "info", title: "Import started", body: tab === "xtream" ? "Signing in, then channels → guide → library." : tab === "stalker" ? "Handshake with the portal, then channels." : "Channels appear as they are indexed." });
       close();
     } catch (e) {
       setError(String(e));
@@ -71,7 +78,12 @@ export default function AddPlaylistDialog() {
             <button className={tab === "file" ? "on" : ""} onClick={() => setTab("file")}>
               M3U file
             </button>
-            <button disabled title="Days 71–90 (feature-flagged)">
+            <button
+              className={tab === "stalker" ? "on" : ""}
+              disabled={!stalkerEnabled}
+              title={stalkerEnabled ? "Stalker / MAC portal (experimental)" : "Experimental — enable in Settings → Playlists"}
+              onClick={() => setTab("stalker")}
+            >
               Stalker
             </button>
           </div>
@@ -123,6 +135,25 @@ export default function AddPlaylistDialog() {
               </div>
             </>
           )}
+          {tab === "stalker" && (
+            <>
+              <div className="field">
+                <label>Portal URL</label>
+                <input className="input" value={portal} onChange={(e) => setPortal(e.target.value)} placeholder="http://host/c/  or  http://host:8080/stalker_portal/c/" spellCheck={false} autoFocus />
+              </div>
+              <div className="field">
+                <label>MAC address (the one registered with the provider)</label>
+                <input className="input" value={mac} onChange={(e) => setMac(e.target.value)} placeholder="00:1A:79:12:34:56" spellCheck={false} autoComplete="off" style={{ fontFamily: "var(--mono)" }} />
+              </div>
+              <div className="field">
+                <label>EPG / XMLTV URL (optional — Stalker EPG is not read yet)</label>
+                <input className="input" value={epgUrl} onChange={(e) => setEpgUrl(e.target.value)} placeholder="http://…/guide.xml" spellCheck={false} />
+              </div>
+              <div style={{ color: "var(--warn)", fontSize: 11.5 }}>
+                Experimental: live TV only. Each channel link is requested from the portal when you press play (they expire), so zapping is a little slower than Xtream.
+              </div>
+            </>
+          )}
           {tab === "file" && (
             <>
               <div className="field">
@@ -163,7 +194,7 @@ export default function AddPlaylistDialog() {
             Cancel
           </button>
           <button className="btn primary" disabled={busy} onClick={() => void submit()}>
-            {busy ? "Starting…" : tab === "xtream" ? "Sign in & import" : "Import"}
+            {busy ? "Starting…" : tab === "xtream" || tab === "stalker" ? "Sign in & import" : "Import"}
           </button>
         </div>
       </div>

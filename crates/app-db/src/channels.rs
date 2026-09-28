@@ -284,6 +284,18 @@ impl Db {
         })
     }
 
+    /// Row id of the channel with this per-playlist `source_id`, if it exists.
+    pub fn channel_by_source_id(&self, playlist_id: i64, source_id: &str) -> Result<Option<i64>> {
+        self.with_read(|c| {
+            Ok(c.query_row(
+                "SELECT id FROM channels WHERE playlist_id = ?1 AND source_id = ?2",
+                params![playlist_id, source_id],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()?)
+        })
+    }
+
     pub fn get_channel(&self, id: i64) -> Result<ChannelRecord> {
         self.with_read(|c| {
             c.query_row(&format!("SELECT {CHANNEL_COLS} FROM channels WHERE id = ?1"), params![id], row_to_channel)

@@ -6,6 +6,7 @@
 //! - Secrets never leave Rust unredacted (see [`redact`]).
 //! - License validation lives here, in Rust, never in JS.
 
+pub mod backup;
 pub mod config;
 pub mod ipc;
 pub mod license;

@@ -106,14 +106,28 @@ pub fn start_job(app: &AppHandle, state: &AppState, rec: &RecordingRecord) -> Re
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let watching_this = state.playback.lock().unwrap().channel_id() == Some(rec.channel_id);
+    let (watching_this, playing_url) = {
+        let pb = state.playback.lock().unwrap();
+        (pb.channel_id() == Some(rec.channel_id), pb.stream_url.clone())
+    };
     let engine_can_tap = state.engine.kind() == "mpv" || state.engine.kind() == "stub";
+    let is_stalker = ch.stream_url.starts_with(app_net::adapters::STALKER_SCHEME);
+    // Stalker links are tokenised at play time: while the channel is playing we know the real URL
+    // (and can tap or continue on it); a scheduled job for an idle Stalker channel cannot start.
+    let stream_url = if is_stalker {
+        match (&playing_url, watching_this) {
+            (Some(u), true) => u.clone(),
+            _ => return Err("Stalker channels can only be recorded while they are playing (links expire)".into()),
+        }
+    } else {
+        ch.stream_url.clone()
+    };
     let mode;
     let kind = if watching_this && engine_can_tap && state.engine.record_path().is_none() {
         state.engine.set_record(path.to_str()).map_err(|e| e.to_string())?;
         mode = "tap";
         JobKind::Tap
-    } else if ch.stream_url.split('?').next().unwrap_or("").ends_with(".m3u8") {
+    } else if stream_url.split('?').next().unwrap_or("").ends_with(".m3u8") {
         // HLS: a raw GET would only fetch the playlist; use a headless mpv with stream-record.
         let engine = app_engine::create_engine(EngineOptions {
             wid: None,
@@ -130,7 +144,7 @@ pub fn start_job(app: &AppHandle, state: &AppState, rec: &RecordingRecord) -> Re
             return Err("HLS recording needs libmpv (not available)".into());
         }
         engine.set_record(path.to_str()).map_err(|e| e.to_string())?;
-        engine.load(&ch.stream_url, app_core::ProfileMode::Stable, 0, None).map_err(|e| e.to_string())?;
+        engine.load(&stream_url, app_core::ProfileMode::Stable, 0, None).map_err(|e| e.to_string())?;
         mode = "headless";
         JobKind::Headless(engine)
     } else {
@@ -141,7 +155,7 @@ pub fn start_job(app: &AppHandle, state: &AppState, rec: &RecordingRecord) -> Re
         let _rt = tauri::async_runtime::handle();
         let _guard = _rt.inner().enter();
         let (control, join) = start_recording(
-            ch.stream_url.clone(),
+            stream_url.clone(),
             src.ua.clone(),
             path.clone(),
             deadline,
@@ -156,14 +170,7 @@ pub fn start_job(app: &AppHandle, state: &AppState, rec: &RecordingRecord) -> Re
     let _ = state.db.set_recording_status(rec.id, "recording", None, None);
     dvr.jobs.lock().unwrap().insert(
         rec.id,
-        RunningJob {
-            kind,
-            channel_id: rec.channel_id,
-            stream_url: ch.stream_url.clone(),
-            user_agent: src.ua.clone(),
-            path,
-            stop_at,
-        },
+        RunningJob { kind, channel_id: rec.channel_id, stream_url, user_agent: src.ua.clone(), path, stop_at },
     );
     let _ = app.emit(EV_DVR, DvrEvent::RecordingStarted { id: rec.id, mode: mode.into() });
     tracing::info!(id = rec.id, mode, channel = ch.name, "recording started");

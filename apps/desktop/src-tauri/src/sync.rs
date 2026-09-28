@@ -4,7 +4,7 @@
 use crate::{EV_IMPORT_DONE, EV_IMPORT_PROGRESS};
 use app_core::redact::redact;
 use app_core::{ImportProgressEvent, SyncStats};
-use app_net::adapters::{CatalogAdapter, XtreamAdapter};
+use app_net::adapters::{CatalogAdapter, StalkerAdapter, XtreamAdapter};
 use app_net::importer::{ImportSource, ProgressSink};
 use app_net::xmltv::{import_xmltv, XmltvOptions};
 use serde::Serialize;
@@ -162,6 +162,7 @@ async fn run_sync(
                 let ok = done(app, playlist_id, "live", live);
                 if ok {
                     let _ = db.ensure_trial_started(now_unix());
+                    after_live(app, &db, playlist_id);
                 }
             }
             if matches!(scope, SyncScope::Full | SyncScope::EpgOnly) {
@@ -175,8 +176,33 @@ async fn run_sync(
                 done(app, playlist_id, "vod", vod);
             }
         }
+        "stalker" => {
+            // Experimental: live only; EPG comes from epg_sources like M3U.
+            let adapter = StalkerAdapter::from_playlist(db.clone(), playlist_id, sink.clone())?;
+            if scope == SyncScope::Full {
+                sink.set_phase("account");
+                if let Err(e) = adapter.authenticate().await {
+                    let _ = db.set_playlist_sync_result(playlist_id, Some(&redact(&e.to_string())));
+                    done(app, playlist_id, "account", Err(e));
+                    return Ok(());
+                }
+                sink.set_phase("live");
+                let live = adapter.sync_live(playlist_id).await;
+                if done(app, playlist_id, "live", live) {
+                    let _ = db.ensure_trial_started(now_unix());
+                    after_live(app, &db, playlist_id);
+                }
+            }
+            if matches!(scope, SyncScope::Full | SyncScope::EpgOnly) {
+                sink.set_phase("epg");
+                sync_epg_sources(app, &db, playlist_id, &src, &sink, scope).await?;
+            }
+            if scope == SyncScope::VodOnly {
+                done(app, playlist_id, "vod", adapter.sync_vod(playlist_id).await);
+            }
+        }
         _ => {
-            // M3U (and, later, Stalker): live from the playlist URL/file, EPG from epg_sources.
+            // M3U: live from the playlist URL/file, EPG from epg_sources.
             if scope == SyncScope::Full {
                 let import_src = if let Some(path) = src.base_url.strip_prefix("file://") {
                     ImportSource::File { path: path.into() }
@@ -196,62 +222,83 @@ async fn run_sync(
                     }
                 }
                 let _ = db.set_playlist_sync_result(playlist_id, live.as_ref().err().map(|e| e.to_string()).as_deref());
-                done(app, playlist_id, "live", live);
+                if done(app, playlist_id, "live", live) {
+                    after_live(app, &db, playlist_id);
+                }
             }
             if matches!(scope, SyncScope::Full | SyncScope::EpgOnly) {
                 sink.set_phase("epg");
-                let sources = db.enabled_epg_sources(playlist_id)?;
-                if sources.is_empty() {
-                    if scope == SyncScope::EpgOnly {
-                        done(
-                            app,
-                            playlist_id,
-                            "epg",
-                            Err(app_net::NetError::Other(
-                                "No EPG source configured for this playlist. Add an XMLTV URL in Settings → Guide."
-                                    .into(),
-                            )),
-                        );
-                    }
-                } else {
-                    let mut total = SyncStats::default();
-                    let mut last_err: Option<app_net::NetError> = None;
-                    for (sid, url) in sources {
-                        let r = import_xmltv(
-                            db.clone(),
-                            playlist_id,
-                            ImportSource::Url { url, user_agent: src.ua.clone() },
-                            sink.clone(),
-                            XmltvOptions::default(),
-                        )
-                        .await;
-                        match r {
-                            Ok(s) => {
-                                let _ = db.mark_epg_source(sid, s.inserted as i64, None);
-                                total.inserted += s.inserted;
-                                total.skipped += s.skipped;
-                                total.groups += s.groups;
-                                total.elapsed_ms += s.elapsed_ms;
-                                total.warnings.extend(s.warnings);
-                            }
-                            Err(e) => {
-                                let _ = db.mark_epg_source(sid, 0, Some(&e.to_string()));
-                                last_err = Some(e);
-                            }
-                        }
-                    }
-                    let result = match (total.inserted, last_err) {
-                        (0, Some(e)) => Err(e),
-                        (_, Some(e)) => {
-                            total.warnings.push(format!("one EPG source failed: {}", redact(&e.to_string())));
-                            Ok(total)
-                        }
-                        (_, None) => Ok(total),
-                    };
-                    done(app, playlist_id, "epg", result);
-                }
+                sync_epg_sources(app, &db, playlist_id, &src, &sink, scope).await?;
             }
         }
     }
     Ok(())
+}
+
+/// XMLTV sources registered for a playlist (M3U and Stalker share this).
+async fn sync_epg_sources(
+    app: &AppHandle,
+    db: &Arc<app_db::Db>,
+    playlist_id: i64,
+    src: &app_db::channels::PlaylistInsert,
+    sink: &Arc<EmitSink>,
+    scope: SyncScope,
+) -> Result<(), app_net::NetError> {
+    let sources = db.enabled_epg_sources(playlist_id)?;
+    if sources.is_empty() {
+        if scope == SyncScope::EpgOnly {
+            done(
+                app,
+                playlist_id,
+                "epg",
+                Err(app_net::NetError::Other(
+                    "No EPG source configured for this playlist. Add an XMLTV URL in Settings → Guide.".into(),
+                )),
+            );
+        }
+    } else {
+        let mut total = SyncStats::default();
+        let mut last_err: Option<app_net::NetError> = None;
+        for (sid, url) in sources {
+            let r = import_xmltv(
+                db.clone(),
+                playlist_id,
+                ImportSource::Url { url, user_agent: src.ua.clone() },
+                sink.clone(),
+                XmltvOptions::default(),
+            )
+            .await;
+            match r {
+                Ok(s) => {
+                    let _ = db.mark_epg_source(sid, s.inserted as i64, None);
+                    total.inserted += s.inserted;
+                    total.skipped += s.skipped;
+                    total.groups += s.groups;
+                    total.elapsed_ms += s.elapsed_ms;
+                    total.warnings.extend(s.warnings);
+                }
+                Err(e) => {
+                    let _ = db.mark_epg_source(sid, 0, Some(&e.to_string()));
+                    last_err = Some(e);
+                }
+            }
+        }
+        let result = match (total.inserted, last_err) {
+            (0, Some(e)) => Err(e),
+            (_, Some(e)) => {
+                total.warnings.push(format!("one EPG source failed: {}", redact(&e.to_string())));
+                Ok(total)
+            }
+            (_, None) => Ok(total),
+        };
+        done(app, playlist_id, "epg", result);
+    }
+    Ok(())
+}
+
+/// Post-live hooks: apply favorites / EPG overrides queued by a restore, then refresh the UI.
+fn after_live(app: &AppHandle, db: &Arc<app_db::Db>, playlist_id: i64) {
+    if crate::commands::backup::apply_pending(db, playlist_id) > 0 {
+        let _ = app.emit("catalog_changed", playlist_id);
+    }
 }

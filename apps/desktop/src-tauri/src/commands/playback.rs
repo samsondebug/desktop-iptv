@@ -78,12 +78,30 @@ pub fn get_playback_state(state: State<'_, AppState>) -> CmdResult<PlaybackState
     Ok(playback_state(&state))
 }
 
+/// Stalker channels store a portal `cmd`, not a URL: exchange it for a tokenised link now.
+/// Everything else passes through untouched.
+pub async fn resolve_stream_url(state: &AppState, ch: &ChannelRecord) -> CmdResult<String> {
+    if !ch.stream_url.starts_with(app_net::adapters::STALKER_SCHEME) {
+        return Ok(ch.stream_url.clone());
+    }
+    let adapter = app_net::adapters::StalkerAdapter::from_playlist(
+        state.db.clone(),
+        ch.playlist_id,
+        std::sync::Arc::new(app_net::importer::NoopSink),
+    )
+    .map_err(err)?;
+    let url = adapter.client.create_link(&ch.stream_url).await.map_err(err)?;
+    tracing::info!(channel = %ch.name, url = %app_core::redact::redact(&url), "stalker link resolved");
+    Ok(url)
+}
+
 /// Click on a channel → `LoadStreamCommand` → `loadfile replace` (CLAUDE.md §15 step 6).
 #[tauri::command]
-pub fn play_channel(state: State<'_, AppState>, channel_id: i64) -> CmdResult<PlaybackState> {
+pub async fn play_channel(state: State<'_, AppState>, channel_id: i64) -> CmdResult<PlaybackState> {
     let ch = state.db.get_channel(channel_id).map_err(err)?;
+    let url = resolve_stream_url(&state, &ch).await?;
     let profile = state.playback.lock().unwrap().profile;
-    do_load(&state, &ch.stream_url, profile, PlaybackItem::Channel { id: channel_id }, None)?;
+    do_load(&state, &url, profile, PlaybackItem::Channel { id: channel_id }, None)?;
     let _ = state.db.touch_recent(channel_id);
     let _ = state.db.set_last_channel_id(channel_id);
     Ok(playback_state(&state))

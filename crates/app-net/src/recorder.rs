@@ -183,7 +183,7 @@ impl RecordJob {
     async fn run(self) -> Result<RecordOutcome> {
         let RecordJob { opts, url, user_agent, path, deadline, on_progress, mut stop, bytes } = self;
         let redacted = redact(&url);
-        let client = HttpClient::new(user_agent.as_deref())?;
+        let client = HttpClient::new(user_agent.as_deref())?.with_kind("record");
         let deadline_sleep = tokio::time::sleep_until(deadline);
         tokio::pin!(deadline_sleep);
 

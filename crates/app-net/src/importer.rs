@@ -59,7 +59,7 @@ pub struct OpenedSource {
 pub async fn open_source(source: &ImportSource) -> Result<OpenedSource> {
     match source {
         ImportSource::Url { url, user_agent } => {
-            let client = HttpClient::new(user_agent.as_deref())?;
+            let client = HttpClient::new(user_agent.as_deref())?.with_kind("playlist");
             let resp = client.get_stream(url).await?;
             tracing::info!(
                 status = resp.status,

@@ -28,6 +28,7 @@ fn install_crypto_provider() {
 pub struct HttpClient {
     inner: reqwest::Client,
     user_agent: String,
+    kind: &'static str,
 }
 
 pub struct StreamedResponse {
@@ -47,11 +48,25 @@ impl HttpClient {
             .user_agent(ua.clone())
             .connect_timeout(CONNECT_TIMEOUT)
             .read_timeout(READ_TIMEOUT)
-            .redirect(reqwest::redirect::Policy::limited(MAX_REDIRECTS))
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                // Record every hop for the diagnostics trace, then apply the usual limit.
+                crate::trace::note_redirect(attempt.previous(), attempt.url());
+                if attempt.previous().len() > MAX_REDIRECTS {
+                    attempt.error(format!("too many redirects (>{MAX_REDIRECTS})"))
+                } else {
+                    attempt.follow()
+                }
+            }))
             .gzip(true)
             .use_rustls_tls()
             .build()?;
-        Ok(Self { inner, user_agent: ua })
+        Ok(Self { inner, user_agent: ua, kind: "http" })
+    }
+
+    /// Label requests from this client in the diagnostics trace (`playlist`, `xtream-api`, …).
+    pub fn with_kind(mut self, kind: &'static str) -> Self {
+        self.kind = kind;
+        self
     }
 
     pub fn user_agent(&self) -> &str {
@@ -69,14 +84,26 @@ impl HttpClient {
         if !matches!(parsed.scheme(), "http" | "https") {
             return Err(NetError::InvalidUrl(format!("unsupported scheme {}", parsed.scheme())));
         }
-        let resp = self.inner.get(parsed.clone()).send().await?;
+        let pending = crate::trace::start(self.kind, "GET", url);
+        let resp = match self.inner.get(parsed.clone()).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                pending.fail(&e.to_string());
+                return Err(e.into());
+            }
+        };
         let status = resp.status().as_u16();
         let final_url = resp.url().to_string();
         let redirect_hops = usize::from(resp.url() != &parsed);
         let content_type =
             resp.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
         let content_length = resp.content_length();
+        let trace_id = pending.finish(status, content_type.as_deref(), content_length);
         if !resp.status().is_success() {
+            // Keep the first bytes of the error page: "got HTML not M3U" is the diagnosis.
+            let body = resp.bytes().await.unwrap_or_default();
+            crate::trace::set_preview(trace_id, &body);
+            crate::trace::set_error(trace_id, &format!("HTTP {status}"));
             return Err(NetError::Http(format!("HTTP {status} from {}", app_core::redact::redact(&final_url))));
         }
         Ok(StreamedResponse {
@@ -85,17 +112,53 @@ impl HttpClient {
             content_type,
             content_length,
             redirect_hops,
-            body: Box::pin(resp.bytes_stream()),
+            body: Box::pin(traced_body(trace_id, resp.bytes_stream())),
         })
     }
 
     /// Small JSON/text GET with an overall timeout (Xtream API calls).
     pub async fn get_text(&self, url: &str) -> Result<(u16, String)> {
-        let resp = self.inner.get(url).timeout(REQUEST_TIMEOUT).send().await?;
+        let pending = crate::trace::start(self.kind, "GET", url);
+        let resp = match self.inner.get(url).timeout(REQUEST_TIMEOUT).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                pending.fail(&e.to_string());
+                return Err(e.into());
+            }
+        };
         let status = resp.status().as_u16();
-        let text = resp.text().await?;
+        let content_type =
+            resp.headers().get(reqwest::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+        let id = pending.finish(status, content_type.as_deref(), resp.content_length());
+        let text = match resp.text().await {
+            Ok(t) => t,
+            Err(e) => {
+                crate::trace::set_error(id, &e.to_string());
+                return Err(e.into());
+            }
+        };
+        crate::trace::set_preview(id, text.as_bytes());
         Ok((status, text))
     }
+}
+
+/// Wrap a body stream so its first chunk (and any mid-body error) lands in the trace entry.
+fn traced_body(
+    id: u64,
+    body: impl Stream<Item = std::result::Result<Bytes, reqwest::Error>> + Send + 'static,
+) -> impl Stream<Item = std::result::Result<Bytes, reqwest::Error>> + Send {
+    let mut first = true;
+    body.map(move |item| {
+        match &item {
+            Ok(chunk) if first => {
+                first = false;
+                crate::trace::set_preview(id, chunk);
+            }
+            Err(e) => crate::trace::set_error(id, &e.to_string()),
+            _ => {}
+        }
+        item
+    })
 }
 
 /// Adapter so a streamed body can be consumed as a plain `Stream<Item = Result<Bytes>>`.

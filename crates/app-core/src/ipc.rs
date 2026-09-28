@@ -48,6 +48,9 @@ pub struct ConfigPayload {
     pub stable_cache_secs: u16,
     /// Whether the user has acknowledged the player-only legal block.
     pub legal_accepted: bool,
+    /// Experimental Stalker / MAC portal sources (CLAUDE.md §7.3: last, feature-flagged).
+    #[serde(default)]
+    pub stalker_enabled: bool,
 }
 
 impl Default for ConfigPayload {
@@ -65,6 +68,7 @@ impl Default for ConfigPayload {
             audio_delay_ms: 0,
             stable_cache_secs: 20,
             legal_accepted: false,
+            stalker_enabled: false,
         }
     }
 }

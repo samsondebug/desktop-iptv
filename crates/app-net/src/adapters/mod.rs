@@ -3,7 +3,9 @@
 //! M3U ([`M3uAdapter`]) and Xtream ([`XtreamAdapter`], in [`xtream`]) sit behind the same trait
 //! so the Tauri command layer never changes shape. Stalker lands last, feature-flagged.
 
+pub mod stalker;
 pub mod xtream;
+pub use stalker::{StalkerAdapter, StalkerClient, STALKER_SCHEME};
 pub use xtream::*;
 
 use crate::importer::{import_m3u, ImportSource, ProgressSink};

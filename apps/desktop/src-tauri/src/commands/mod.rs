@@ -1,6 +1,8 @@
 //! Tauri commands. Every error string passes through `redact` before it reaches the UI.
 
+pub mod backup;
 pub mod catalog;
+pub mod diagnostics;
 pub mod dvr;
 pub mod epg;
 pub mod parental;
@@ -8,7 +10,9 @@ pub mod playback;
 pub mod vod;
 pub mod windows;
 
+pub use backup::*;
 pub use catalog::*;
+pub use diagnostics::*;
 pub use dvr::*;
 pub use epg::*;
 pub use parental::*;

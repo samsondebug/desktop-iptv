@@ -27,6 +27,13 @@ pub enum AddPlaylistSource {
         stream_format: Option<String>,
         user_agent: Option<String>,
     },
+    /// Experimental (Settings → Advanced → Stalker portals).
+    Stalker {
+        portal_url: String,
+        mac: String,
+        user_agent: Option<String>,
+        epg_url: Option<String>,
+    },
 }
 
 fn host_of(url: &str) -> String {
@@ -110,6 +117,28 @@ pub fn add_playlist(
                 },
                 None,
                 stream_format.clone(),
+            )
+        }
+        AddPlaylistSource::Stalker { portal_url, mac, user_agent, epg_url } => {
+            if !state.db.load_config().map_err(err)?.stalker_enabled {
+                return Err("Stalker portals are experimental — enable them in Settings → Advanced first.".into());
+            }
+            let mac = app_net::adapters::stalker::normalize_mac(mac)
+                .ok_or("MAC address must be 12 hex digits, e.g. 00:1A:79:12:34:56")?;
+            let candidates = app_net::adapters::stalker::endpoint_candidates(portal_url).map_err(err)?;
+            let base = portal_url.trim().to_string();
+            (
+                PlaylistInsert {
+                    r#type: "stalker".into(),
+                    name: if name.is_empty() { host_of(&candidates[0]) } else { name.to_string() },
+                    base_url: base,
+                    user: None,
+                    pass: None,
+                    mac: Some(mac),
+                    ua: user_agent.clone().filter(|s| !s.trim().is_empty()),
+                },
+                epg_url.clone(),
+                None,
             )
         }
     };

@@ -287,6 +287,10 @@ export const useApp = create<AppStore>((set, get) => ({
     });
 
     await events.onPanesChanged((panes) => set({ panes }));
+    await events.onCatalogChanged(async () => {
+      await get().refreshSidebarLists();
+      set((s) => ({ listVersion: s.listVersion + 1 }));
+    });
     ipc.listPanes().then((panes) => set({ panes })).catch(() => {});
     ipc.listRecordings().then((r) => set({ activeRecordings: r.filter((x) => x.status === "recording").length })).catch(() => {});
 

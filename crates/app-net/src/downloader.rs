@@ -12,7 +12,7 @@ use crate::recorder::progress_due;
 use crate::{NetError, Result};
 use app_core::redact::redact;
 use futures_util::StreamExt;
-use reqwest::header::{ACCEPT_ENCODING, CONTENT_RANGE, RANGE};
+use reqwest::header::{ACCEPT_ENCODING, CONTENT_RANGE, CONTENT_TYPE, RANGE};
 use reqwest::StatusCode;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -92,8 +92,20 @@ pub async fn download_sidecar_srt(srt_url: &str, user_agent: Option<&str>, media
     let redacted = redact(srt_url);
     validate_url(srt_url)?;
     let client = HttpClient::new(user_agent)?;
-    let resp = client.raw().get(srt_url).timeout(REQUEST_TIMEOUT).send().await?;
+    let pending = crate::trace::start("download", "GET", srt_url);
+    let resp = match client.raw().get(srt_url).timeout(REQUEST_TIMEOUT).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            pending.fail(&e.to_string());
+            return Err(e.into());
+        }
+    };
     let status = resp.status();
+    pending.finish(
+        status.as_u16(),
+        resp.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()),
+        resp.content_length(),
+    );
     if matches!(status, StatusCode::NOT_FOUND | StatusCode::GONE) {
         tracing::info!(status = status.as_u16(), url = %redacted, "sidecar srt: none available");
         return Ok(false);
@@ -310,7 +322,21 @@ async fn send_get(client: &HttpClient, url: &str, offset: u64) -> Result<reqwest
     if offset > 0 {
         req = req.header(RANGE, format!("bytes={offset}-"));
     }
-    Ok(req.send().await?)
+    let pending = crate::trace::start("download", if offset > 0 { "GET+Range" } else { "GET" }, url);
+    match req.send().await {
+        Ok(resp) => {
+            pending.finish(
+                resp.status().as_u16(),
+                resp.headers().get(CONTENT_TYPE).and_then(|v| v.to_str().ok()),
+                resp.content_length(),
+            );
+            Ok(resp)
+        }
+        Err(e) => {
+            pending.fail(&e.to_string());
+            Err(e.into())
+        }
+    }
 }
 
 async fn file_len(path: &Path) -> Result<u64> {

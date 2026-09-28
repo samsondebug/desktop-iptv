@@ -16,6 +16,7 @@ pub mod importer;
 pub mod m3u;
 pub mod preflight;
 pub mod recorder;
+pub mod trace;
 pub mod xmltv;
 
 pub use http::HttpClient;

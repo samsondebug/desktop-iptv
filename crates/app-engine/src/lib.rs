@@ -8,6 +8,7 @@
 
 pub mod ffi;
 pub mod mpv;
+pub mod probe;
 pub mod profiles;
 pub mod stub;
 #[cfg(windows)]

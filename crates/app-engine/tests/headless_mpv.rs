@@ -141,3 +141,35 @@ impl ProfineModeCompat {
         ProfileMode::Stable
     }
 }
+
+#[test]
+fn probe_reports_codecs_and_errors() {
+    let dir = std::env::temp_dir().join("desktop-iptv-engine-test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let ts = dir.join("probe.ts");
+    if !make_ts(&ts) {
+        eprintln!("ffmpeg unavailable — skipping probe test");
+        return;
+    }
+    if create_engine(EngineOptions::default()).kind() != "mpv" {
+        eprintln!("libmpv unavailable — skipping probe test");
+        return;
+    }
+    let url = format!("file://{}", ts.display());
+    let r = app_engine::probe::probe_stream(EngineOptions::default(), &url, Duration::from_secs(20));
+    eprintln!("probe: {}", r.summary());
+    assert!(r.ok, "probe failed: {:?} log={:?}", r.error, r.log);
+    assert!(r.ttff_ms.is_some());
+    assert_eq!(r.container.as_deref(), Some("mpegts"));
+    assert!(r.video_codec.as_deref().unwrap_or("").to_lowercase().contains("h264"), "{:?}", r.video_codec);
+    assert_eq!((r.width, r.height), (Some(320), Some(240)));
+
+    // A URL that cannot exist: the error must be reported, redacted, within the timeout.
+    let bad = "http://127.0.0.1:9/live/user/secret/1.ts";
+    let r = app_engine::probe::probe_stream(EngineOptions::default(), bad, Duration::from_secs(20));
+    eprintln!("probe: {}", r.summary());
+    assert!(!r.ok);
+    assert!(r.error.is_some());
+    assert!(!r.url.contains("secret"));
+    assert!(!format!("{:?}", r).contains("secret"), "redaction leak: {:?}", r);
+}

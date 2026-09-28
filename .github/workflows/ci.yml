@@ -33,8 +33,23 @@ jobs:
           cargo test -p app-core -p app-db -p app-net -p app-engine
       - name: Import benchmark (20k channels)
         run: cargo run --release -p app-net --example bench_import -- 20000
-      - name: App crate — check
+      - uses: actions/setup-node@v4
         if: runner.os == 'Linux'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Frontend build (embedded by the app crate)
+        if: runner.os == 'Linux'
+        run: npm ci && npm run build
+        working-directory: apps/desktop
+      - name: App crate — clippy + tests
+        if: runner.os == 'Linux'
+        run: |
+          cargo clippy --workspace --all-targets --features desktop-iptv/custom-protocol -- -D warnings
+          cargo test -p desktop-iptv --features custom-protocol
+      - name: Windows — app crate check (libmpv-free; stub engine)
+        if: runner.os == 'Windows'
         run: cargo check -p desktop-iptv
 
   frontend:
