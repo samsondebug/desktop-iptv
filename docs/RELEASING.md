@@ -95,8 +95,12 @@ Getting the account (individual developer, must be in the US or Canada):
    `AZURE_CLIENT_SECRET`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` (and
    `AZURE_SIGNING_ENDPOINT` if the region is not East US). Next tag → signed installers.
 
-Locally, the same signing works with `cargo install artifact-signing-cli`, the three `AZURE_*` env
-vars, and `tauri build --config '{"bundle":{"windows":{"signCommand":"artifact-signing-cli -e <endpoint> -a <account> -c <profile> -d desktop-iptv %1"}}}'`.
+Locally, the same signing works with Microsoft's signtool dlib: install
+`winget install -e --id Microsoft.Azure.ArtifactSigningClientTools`, set the three `AZURE_*` env
+vars, write a `metadata.json` (`Endpoint`, `CodeSigningAccountName`, `CertificateProfileName`) and
+build with `tauri build --config '{"bundle":{"windows":{"signCommand":{"cmd":"<signtool.exe>","args":["sign","/fd","SHA256","/tr","http://timestamp.acs.microsoft.com","/td","SHA256","/dlib","<Azure.CodeSigning.Dlib.dll>","/dmdf","<metadata.json>","%1"]}}}}'`.
+(The third-party `artifact-signing-cli` crate was tried first; on current Rust it cannot spawn
+`az.cmd` with the client secret as an argument — "batch file arguments are invalid".)
 
 SmartScreen reputation is per certificate and builds with downloads; a freshly issued certificate
 can still show the "More info → Run anyway" prompt for the first days. Submitting a signed build

@@ -105,9 +105,10 @@ jobs:
 
       # Windows code signing through Azure Artifact Signing (formerly Trusted Signing). Only active
       # when the AZURE_* secrets exist (docs/RELEASING.md § Code signing); otherwise the build is
-      # unsigned and SmartScreen warns once. Tauri signs the exe and the NSIS/MSI installers
-      # through bundle.windows.signCommand, injected here as a config overlay so the committed
-      # tauri.conf.json stays buildable on machines without the CLI.
+      # unsigned and SmartScreen warns once. Uses Microsoft's own signtool dlib
+      # (Microsoft.ArtifactSigning.Client from NuGet) authenticated through EnvironmentCredential,
+      # injected into tauri as a bundle.windows.signCommand config overlay so the committed
+      # tauri.conf.json stays buildable on machines without the tooling.
       - name: Windows code signing (Azure Artifact Signing)
         if: runner.os == 'Windows'
         id: acs
@@ -125,23 +126,39 @@ jobs:
             "args=" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             exit 0
           }
+          $ErrorActionPreference = "Stop"
           $endpoint = if ($env:AZURE_SIGNING_ENDPOINT) { $env:AZURE_SIGNING_ENDPOINT } else { "https://eus.codesigning.azure.net" }
-          cargo install artifact-signing-cli --locked
-          # Preflight: sign a throwaway copy of a system exe so a broken credential, role, endpoint or
-          # SDK path fails here with the CLI's full output (tauri only logs it at debug level).
-          Write-Host "az: $(Get-Command az -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)"
-          Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "SDK: $($_.Name)" }
+          $tools = Join-Path $env:RUNNER_TEMP "acs"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.ArtifactSigning.Client" -OutFile "$tools\client.zip"
+          Expand-Archive "$tools\client.zip" -DestinationPath "$tools\client" -Force
+          $dlib = Get-ChildItem "$tools\client" -Recurse -Filter Azure.CodeSigning.Dlib.dll | Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1 -ExpandProperty FullName
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe | Where-Object { $_.FullName -match '\\x64\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $dlib -or -not $signtool) { throw "dlib=$dlib signtool=$signtool" }
+          Write-Host "signtool: $signtool"
+          Write-Host "dlib:     $dlib"
+          $meta = Join-Path $tools "metadata.json"
+          @{
+            Endpoint = $endpoint
+            CodeSigningAccountName = $env:AZURE_SIGNING_ACCOUNT
+            CertificateProfileName = $env:AZURE_SIGNING_PROFILE
+            ExcludeCredentials = @("ManagedIdentityCredential","WorkloadIdentityCredential","SharedTokenCacheCredential","VisualStudioCredential","VisualStudioCodeCredential","AzureCliCredential","AzurePowerShellCredential","AzureDeveloperCliCredential","InteractiveBrowserCredential")
+          } | ConvertTo-Json | Set-Content -Path $meta -Encoding utf8
+          # Preflight: sign a throwaway copy of a system exe so a broken credential, role or endpoint
+          # fails here with signtool's full output (tauri only logs it at debug level).
           $probe = Join-Path $env:RUNNER_TEMP "signprobe.exe"
           Copy-Item "$env:SystemRoot\System32\where.exe" $probe
-          artifact-signing-cli -e $endpoint -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d "desktop-iptv sign probe" $probe
-          if ($LASTEXITCODE -ne 0) { throw "artifact-signing-cli preflight failed (exit $LASTEXITCODE) - see output above" }
+          & $signtool sign /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 /dlib $dlib /dmdf $meta /d "desktop-iptv sign probe" $probe
+          if ($LASTEXITCODE -ne 0) { throw "signtool preflight failed (exit $LASTEXITCODE) - see output above" }
           $sig = Get-AuthenticodeSignature $probe
           Write-Host "Probe signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
-          $cmd = "artifact-signing-cli -e $endpoint -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d desktop-iptv %1"
-          $overlay = @{ bundle = @{ windows = @{ signCommand = $cmd } } } | ConvertTo-Json -Depth 5 -Compress
+          $overlay = @{ bundle = @{ windows = @{ signCommand = @{
+            cmd = $signtool
+            args = @("sign","/fd","SHA256","/tr","http://timestamp.acs.microsoft.com","/td","SHA256","/dlib",$dlib,"/dmdf",$meta,"/d","desktop-iptv","%1")
+          } } } } | ConvertTo-Json -Depth 6 -Compress
           $path = Join-Path $env:RUNNER_TEMP "sign.conf.json"
           Set-Content -Path $path -Value $overlay -Encoding utf8
-          Write-Host "Signing enabled: $cmd"
+          Write-Host "Signing enabled via $signtool"
           "args=--config $path" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Build + package
