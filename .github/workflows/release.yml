@@ -5,7 +5,7 @@ name: release
 # with `latest.json` — which is what installed copies poll (plugins.updater.endpoints) and what the
 # download page (site/) links to. See docs/RELEASING.md.
 #
-# Trigger: push a tag `v*` (e.g. `git tag v0.1.0 && git push --tags`) or run it by hand.
+# Trigger: push a tag `v*` (e.g. `git tag v0.2.0 && git push --tags`) or run it by hand.
 #
 # Required secret: TAURI_SIGNING_PRIVATE_KEY (the minisign private key generated with
 # `tauri signer generate`; its public half is in tauri.conf.json). Without it the build stops early.
@@ -148,13 +148,13 @@ jobs:
           # fails here with signtool's full output (tauri only logs it at debug level).
           $probe = Join-Path $env:RUNNER_TEMP "signprobe.exe"
           Copy-Item "$env:SystemRoot\System32\where.exe" $probe
-          & $signtool sign /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 /dlib $dlib /dmdf $meta /d "desktop-iptv sign probe" $probe
+          & $signtool sign /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 /dlib $dlib /dmdf $meta /d "SKTV sign probe" $probe
           if ($LASTEXITCODE -ne 0) { throw "signtool preflight failed (exit $LASTEXITCODE) - see output above" }
           $sig = Get-AuthenticodeSignature $probe
           Write-Host "Probe signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
           $overlay = @{ bundle = @{ windows = @{ signCommand = @{
             cmd = $signtool
-            args = @("sign","/fd","SHA256","/tr","http://timestamp.acs.microsoft.com","/td","SHA256","/dlib",$dlib,"/dmdf",$meta,"/d","desktop-iptv","%1")
+            args = @("sign","/fd","SHA256","/tr","http://timestamp.acs.microsoft.com","/td","SHA256","/dlib",$dlib,"/dmdf",$meta,"/d","SKTV","%1")
           } } } } | ConvertTo-Json -Depth 6 -Compress
           $path = Join-Path $env:RUNNER_TEMP "sign.conf.json"
           Set-Content -Path $path -Value $overlay -Encoding utf8
@@ -180,15 +180,15 @@ jobs:
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: "desktop-iptv ${{ github.ref_name }}"
+          releaseName: "SKTV ${{ github.ref_name }}"
           releaseBody: |
             Player-only IPTV client. This app does not provide channels, playlists, or stream URLs — you bring your own source. We do not support illegal services.
 
-            * **Windows** — `desktop-iptv_<version>_x64-setup.exe` (bundles libmpv; installs WebView2 if missing). If SmartScreen shows "Windows protected your PC", click *More info → Run anyway* (happens while a new signing certificate is still building reputation, or on unsigned builds).
+            * **Windows** — `SKTV_<version>_x64-setup.exe` (bundles libmpv; installs WebView2 if missing; replaces an older `desktop-iptv` install and keeps its data). If SmartScreen shows "Windows protected your PC", click *More info → Run anyway* (happens while a new signing certificate is still building reputation, or on unsigned builds).
             * **macOS** — `.dmg` for Apple Silicon (`aarch64`) and Intel (`x64`). Unsigned: after copying to Applications, open it once from System Settings → Privacy & Security → *Open Anyway*.
             * **Linux** — `.deb` (depends on libmpv2) or `.AppImage` (install libmpv2 with your package manager).
 
-            Installed copies update themselves from this page (`latest.json`).
+            Installed copies (including ones still called desktop-iptv) update themselves from this page (`latest.json`).
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
           includeUpdaterJson: true
@@ -198,7 +198,7 @@ jobs:
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-iptv-${{ matrix.name }}
+          name: SKTV-${{ matrix.name }}
           if-no-files-found: warn
           path: |
             target/release/bundle/**/*.exe

@@ -29,7 +29,7 @@ const KEY_LEN: usize = 32;
 pub enum BackupError {
     #[error("passphrase must be at least 6 characters")]
     WeakPassphrase,
-    #[error("not a desktop-iptv backup file")]
+    #[error("not an SKTV backup file")]
     BadMagic,
     #[error("backup file is truncated or corrupt")]
     Truncated,

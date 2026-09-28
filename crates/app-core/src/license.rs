@@ -50,7 +50,7 @@ struct TokenPayload {
 /// refuses (VMs, sandboxes) so the app still runs.
 pub fn machine_guid() -> String {
     let raw = machine_uid::get().unwrap_or_else(|_| "unknown-machine".to_string());
-    let hash = Sha256::digest(format!("{}|{}", crate::PRODUCT_NAME, raw).as_bytes());
+    let hash = Sha256::digest(format!("{}|{}", crate::MACHINE_ID_SALT, raw).as_bytes());
     hex::encode(&hash[..16])
 }
 

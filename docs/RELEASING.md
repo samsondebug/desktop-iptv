@@ -1,4 +1,4 @@
-# Releasing desktop-iptv
+# Releasing SKTV
 
 How a version gets from `main` to a link friends can click.
 
@@ -51,9 +51,9 @@ account; public repos build for free. `actions/configure-pages` cannot create th
 ```
 # bump the version in Cargo.toml [workspace.package] (all crates + tauri.conf.json read it),
 # apps/desktop/package.json and apps/desktop/src-tauri/tauri.conf.json — keep all three equal
-git commit -am "0.1.1"
-git tag -a v0.1.1 -m "desktop-iptv 0.1.1"
-git push origin main v0.1.1
+git commit -am "0.2.1"
+git tag -a v0.2.1 -m "SKTV 0.2.1"
+git push origin main v0.2.1
 ```
 
 About 25 minutes later the release is live at `github.com/samsondebug/desktop-iptv/releases/latest`,
@@ -116,6 +116,26 @@ at microsoft.com/wdsi speeds that up.
   `APPLE_*` secrets already referenced in `release.yml` and tauri-action signs + notarizes.
 * **Linux**: no gate.
 
+## The rename (desktop-iptv → SKTV, 0.2.0)
+
+Only what users see changed. `productName` drives the exe, `.app`, installer and asset names
+(`SKTV_<v>_x64-setup.exe`, `SKTV_aarch64.app.tar.gz`, …); the updater's `latest.json` keys are
+platform/arch and do not care. Kept as they were, deliberately:
+
+* `identifier` `dev.desktopiptv.app` — the app-data folder. Changing it would orphan every
+  installed copy's catalog, settings and licence.
+* `MACHINE_ID_SALT` in `app-core` — the machine GUID feeds trial and licence tokens.
+* `bundle.windows.wix.upgradeCode` pinned to the value tauri-bundler derived from
+  "desktop-iptv" (`tauri inspect wix-upgrade-code`), so an MSI install is still major-upgraded.
+* Repo, crate, npm package and `DESKTOP_IPTV_*` env-var names.
+
+NSIS keys the uninstall entry and the install folder on the product name, so the stock
+"previous version" logic cannot see a desktop-iptv install; `src-tauri/nsis/hooks.nsh`
+(`NSIS_HOOK_PREINSTALL`) runs the old uninstaller silently (HKLM and HKCU) before SKTV installs.
+A silent NSIS uninstall never deletes app data. Old installs self-update into SKTV: 0.1.0 asks for
+`windows-x86_64-nsis`, downloads `SKTV_0.2.0_x64-setup.exe`, the hook removes desktop-iptv,
+SKTV lands in `Program Files\SKTV` with the same data.
+
 ## Hosting the page somewhere other than GitHub Pages
 
 `site/index.html` is one file with no build step. Drop it on any static host or behind your own
@@ -130,5 +150,5 @@ GitHub login), so make the repo public first.
 cargo install cargo-xwin && rustup target add x86_64-pc-windows-msvc && sudo apt install nsis
 export TAURI_SIGNING_PRIVATE_KEY=$(cat /path/to/desktop-iptv.key)
 cd apps/desktop && npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis
-# → target/x86_64-pc-windows-msvc/release/bundle/nsis/desktop-iptv_<v>_x64-setup.exe (+ .sig)
+# → target/x86_64-pc-windows-msvc/release/bundle/nsis/SKTV_<v>_x64-setup.exe (+ .sig)
 ```

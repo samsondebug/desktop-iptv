@@ -78,7 +78,7 @@ About & backup), Diagnostics, keyboard map, themes via CSS tokens.
   `reconnect_at_eof` / `reconnect_on_http_error=4xx,5xx` plus an app-level reconnect with backoff
   (1/2/4/8/15 s, 10 attempts) and a notice in the UI; a tap recording continues on its own
   connection across the reload.
-* No log file for support → `<app data>/desktop-iptv.log`, truncated per run, tail included in the
+* No log file for support → `<app data>/sktv.log`, truncated per run, tail included in the
   diagnostics report.
 * Cross-building from Linux: `cargo install cargo-xwin`, `apt install nsis`, then
   `npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis` produces the
@@ -109,6 +109,15 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
 * **v0.1.0 released 2026-09-28** from `release.yml`: signed Windows exe/msi (Azure Artifact
   Signing, publisher David Krouskoff), macOS DMGs (unsigned), Linux deb/AppImage/rpm, `latest.json`.
   Download page: https://samsondebug.github.io/desktop-iptv/
+* **v0.2.0 — renamed to SKTV.** `productName`, window titles, About/toasts, User-Agent
+  (`SKTV/<version> (libmpv)`), backup wording, log file (`sktv.log`), recordings folder
+  (`<Videos>/SKTV`), release names, download page. Unchanged on purpose: bundle identifier
+  `dev.desktopiptv.app` (app-data folder stays, so playlists/settings/licence carry over), crate
+  and repo names, `MACHINE_ID_SALT` (machine GUID → trial/licence state unchanged), WiX
+  `upgradeCode` pinned to the desktop-iptv value. `nsis/hooks.nsh` uninstalls a leftover
+  desktop-iptv (per-machine or per-user) before SKTV installs, so the 0.1.0 → 0.2.0 self-update
+  ends with one copy. `bundle.publisher` is now "David Krouskoff" (Add/Remove showed
+  "desktopiptv").
 
 ## Next
 

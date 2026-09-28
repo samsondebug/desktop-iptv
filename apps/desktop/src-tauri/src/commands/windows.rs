@@ -181,7 +181,7 @@ pub async fn pane_open(app: AppHandle, state: State<'_, AppState>, channel_id: O
         n += 1;
     };
     let window = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(format!("index.html?pane={label}").into()))
-        .title(format!("desktop-iptv — pane {n}"))
+        .title(format!("SKTV — pane {n}"))
         .inner_size(720.0, 405.0)
         .min_inner_size(320.0, 180.0)
         .transparent(true)

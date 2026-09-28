@@ -22,5 +22,10 @@ You bring your own source. We do not support illegal services. \
 We support the player, not the reseller.";
 
 /// Product identifiers. Never "IPTV Player Zero", "Zero" or "Built By Board".
-pub const PRODUCT_NAME: &str = "desktop-iptv";
+/// The product was called `desktop-iptv` up to 0.1.0 (still the crate, bundle-identifier and
+/// repository name); `SKTV` is what users see.
+pub const PRODUCT_NAME: &str = "SKTV";
+/// Salt for the machine identifier. Deliberately the old product name: changing it would give
+/// every existing install a new machine GUID, restarting trials and orphaning issued licences.
+pub const MACHINE_ID_SALT: &str = "desktop-iptv";
 pub const PRODUCT_VERSION: &str = env!("CARGO_PKG_VERSION");

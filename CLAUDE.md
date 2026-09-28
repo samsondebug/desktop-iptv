@@ -91,7 +91,7 @@ Monetization from the deck: 72-hour full trial on first import. ~$13 lifetime. T
 
 > This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.
 
-8. Default product name in code: `desktop-iptv` / crate names `app-*`. Do not use "IPTV Player Zero", "Zero", or "Built By Board" as the product name.
+8. Product name shown to users: **SKTV** (renamed from `desktop-iptv` in 0.2.0 at the owner's request; `desktop-iptv` remains the repo, crate, bundle-identifier and env-var name — see `docs/RELEASING.md` § The rename). Crate names `app-*`. Do not use "IPTV Player Zero", "Zero", or "Built By Board" as the product name.
 
 ---
 

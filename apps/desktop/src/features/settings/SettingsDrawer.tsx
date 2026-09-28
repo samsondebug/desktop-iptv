@@ -600,7 +600,7 @@ function BackupPanel() {
   const weak = pass.length < 6;
 
   const doExport = async () => {
-    const path = await save({ defaultPath: `desktop-iptv-backup-${new Date().toISOString().slice(0, 10)}.diptvbk`, filters: [{ name: "desktop-iptv backup", extensions: ["diptvbk"] }] });
+    const path = await save({ defaultPath: `SKTV-backup-${new Date().toISOString().slice(0, 10)}.diptvbk`, filters: [{ name: "SKTV backup", extensions: ["diptvbk"] }] });
     if (!path) return;
     setBusy(true);
     try {
@@ -614,7 +614,7 @@ function BackupPanel() {
     }
   };
   const doImport = async () => {
-    const chosen = await open({ multiple: false, directory: false, filters: [{ name: "desktop-iptv backup", extensions: ["diptvbk"] }] });
+    const chosen = await open({ multiple: false, directory: false, filters: [{ name: "SKTV backup", extensions: ["diptvbk"] }] });
     if (typeof chosen !== "string") return;
     setBusy(true);
     try {

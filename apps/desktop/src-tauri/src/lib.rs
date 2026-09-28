@@ -26,13 +26,14 @@ pub const EV_IMPORT_PROGRESS: &str = "import_progress";
 /// `sync::ImportDone`
 pub const EV_IMPORT_DONE: &str = "import_done";
 
-/// Where the log file lives: `<app data dir>/desktop-iptv.log` (same folder as the catalog).
+/// Where the log file lives: `<app data dir>/sktv.log` (same folder as the catalog; the folder
+/// keeps its pre-rename name `dev.desktopiptv.app` — that is the bundle identifier).
 /// Truncated at every start so a support report is always "this run". Every line already went
 /// through `redact` at the call site.
 pub fn log_path() -> Option<std::path::PathBuf> {
     let dir = dirs::data_dir()?.join("dev.desktopiptv.app");
     std::fs::create_dir_all(&dir).ok()?;
-    Some(dir.join("desktop-iptv.log"))
+    Some(dir.join("sktv.log"))
 }
 
 fn init_tracing() {

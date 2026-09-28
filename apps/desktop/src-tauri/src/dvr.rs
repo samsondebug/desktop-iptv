@@ -67,7 +67,7 @@ fn safe_name(s: &str) -> String {
     cleaned.trim().chars().take(80).collect()
 }
 
-/// Where recordings/downloads go: `<Videos>/desktop-iptv/…` when a Videos folder exists, else app data.
+/// Where recordings/downloads go: `<Videos>/SKTV/…` when a Videos folder exists, else app data.
 pub fn media_dir(app: &AppHandle, state: &AppState, sub: &str) -> PathBuf {
     let base = state
         .db
@@ -75,7 +75,7 @@ pub fn media_dir(app: &AppHandle, state: &AppState, sub: &str) -> PathBuf {
         .ok()
         .flatten()
         .map(PathBuf::from)
-        .or_else(|| app.path().video_dir().ok().map(|v| v.join("desktop-iptv")))
+        .or_else(|| app.path().video_dir().ok().map(|v| v.join("SKTV")))
         .unwrap_or_else(|| state.data_dir.clone());
     let dir = base.join(sub);
     let _ = std::fs::create_dir_all(&dir);

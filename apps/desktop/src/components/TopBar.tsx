@@ -58,7 +58,7 @@ export default function TopBar() {
       <TierBadge />
       {!config.hide_brand_chrome && (
         <span className="font-semibold tracking-tight" style={{ color: "var(--text)" }}>
-          desktop-iptv
+          SKTV
         </span>
       )}
 

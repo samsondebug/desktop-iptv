@@ -1,6 +1,7 @@
-# desktop-iptv
+# SKTV
 
-Player-only desktop IPTV client. **libmpv for truth, SQLite for speed, EPG + player on one canvas,
+Player-only desktop IPTV client (repository and crate name: `desktop-iptv`, the product's name
+up to 0.1.0). **libmpv for truth, SQLite for speed, EPG + player on one canvas,
 diagnostics that prove the provider is at fault, cheap lifetime unlock.**
 
 > This app does not provide channels, playlists, or stream URLs. You bring your own source.

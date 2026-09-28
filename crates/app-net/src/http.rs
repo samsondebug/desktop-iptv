@@ -6,7 +6,7 @@ use futures_util::{Stream, StreamExt};
 use std::sync::Once;
 use std::time::Duration;
 
-pub const DEFAULT_USER_AGENT: &str = concat!("desktop-iptv/", env!("CARGO_PKG_VERSION"), " (libmpv)");
+pub const DEFAULT_USER_AGENT: &str = concat!("SKTV/", env!("CARGO_PKG_VERSION"), " (libmpv)");
 pub const MAX_REDIRECTS: usize = 5;
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Per-request overall timeout for metadata calls (Xtream JSON etc.). Streaming bodies use

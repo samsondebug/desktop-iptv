@@ -43,7 +43,7 @@ export async function checkForUpdates(interactive: boolean): Promise<void> {
       useApp.getState().pushToast({
         level: "info",
         sticky: true,
-        title: `desktop-iptv ${u.version} is available`,
+        title: `SKTV ${u.version} is available`,
         body: u.body ? u.body.split("\n").slice(0, 3).join("\n") : "Installs in the background, then restarts.",
         action: { label: "Install & restart", onClick: () => void installUpdate() },
       });

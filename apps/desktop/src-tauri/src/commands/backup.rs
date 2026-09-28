@@ -157,7 +157,7 @@ pub fn backup_inspect(path: String, passphrase: String) -> CmdResult<BackupSumma
 fn read_payload(path: &str, passphrase: &str) -> CmdResult<(Payload, u64)> {
     let file = std::fs::read(path).map_err(|e| format!("could not read backup: {e}"))?;
     if !crypto::looks_like_backup(&file) {
-        return Err("This is not a desktop-iptv backup file.".into());
+        return Err("This is not an SKTV backup file.".into());
     }
     let json = crypto::open(passphrase, &file).map_err(|e| e.to_string())?;
     let payload: Payload = serde_json::from_slice(&json).map_err(|e| format!("backup payload is not readable: {e}"))?;
