@@ -2,6 +2,7 @@
 # Bundle libmpv (and the dylibs it needs) into apps/desktop/src-tauri/lib/ for the macOS build.
 # Uses Homebrew's mpv; rewrites install names so the copies resolve relative to each other
 # (@loader_path). desktop-iptv searches Contents/Resources/lib at startup.
+# The walk is in Python because macOS ships bash 3.2 (no associative arrays).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 lib="$root/apps/desktop/src-tauri/lib"
@@ -11,33 +12,40 @@ prefix="$(brew --prefix)"
 src="$prefix/lib/libmpv.2.dylib"
 [ -f "$src" ] || { echo "install mpv first: brew install mpv" >&2; exit 1; }
 
-# Copy libmpv plus its transitive Homebrew dependencies.
-declare -A seen
-queue=("$src")
-while ((${#queue[@]})); do
-  f="${queue[0]}"; queue=("${queue[@]:1}")
-  real="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$f")"
-  name="$(basename "$f")"
-  [[ -n "${seen[$name]:-}" ]] && continue
-  seen[$name]=1
-  cp -f "$real" "$lib/$name"
-  chmod u+w "$lib/$name"
-  while read -r dep; do
-    case "$dep" in
-      "$prefix"/*|/opt/homebrew/*|/usr/local/*) queue+=("$dep") ;;
-    esac
-  done < <(otool -L "$real" | tail -n +2 | awk '{print $1}')
-done
+python3 - "$src" "$lib" "$prefix" <<'PY'
+import os, shutil, subprocess, sys
+src, lib, prefix = sys.argv[1:4]
+roots = (prefix + "/", "/opt/homebrew/", "/usr/local/")
 
-# Rewrite install names to @loader_path so the bundle is relocatable.
-for f in "$lib"/*.dylib; do
-  install_name_tool -id "@loader_path/$(basename "$f")" "$f"
-  while read -r dep; do
-    case "$dep" in
-      "$prefix"/*|/opt/homebrew/*|/usr/local/*)
-        install_name_tool -change "$dep" "@loader_path/$(basename "$dep")" "$f" ;;
-    esac
-  done < <(otool -L "$f" | tail -n +2 | awk '{print $1}')
-  codesign --force --sign - "$f" >/dev/null 2>&1 || true
-done
-ls -1 "$lib" | wc -l | xargs -I{} echo "{} dylibs bundled into $lib"
+def deps(path):
+    out = subprocess.check_output(["otool", "-L", path], text=True).splitlines()[1:]
+    return [line.split()[0] for line in out if line.strip()]
+
+# Copy libmpv plus its transitive Homebrew dependencies.
+seen, queue = set(), [src]
+while queue:
+    f = queue.pop(0)
+    name = os.path.basename(f)
+    if name in seen:
+        continue
+    seen.add(name)
+    real = os.path.realpath(f)
+    dst = os.path.join(lib, name)
+    shutil.copyfile(real, dst)
+    os.chmod(dst, 0o755)
+    for d in deps(real):
+        if d.startswith(roots):
+            queue.append(d)
+
+# Rewrite install names to @loader_path so the bundle is relocatable, then ad-hoc sign.
+for name in sorted(os.listdir(lib)):
+    if not name.endswith(".dylib"):
+        continue
+    f = os.path.join(lib, name)
+    subprocess.check_call(["install_name_tool", "-id", f"@loader_path/{name}", f])
+    for d in deps(f):
+        if d.startswith(roots):
+            subprocess.check_call(["install_name_tool", "-change", d, f"@loader_path/{os.path.basename(d)}", f])
+    subprocess.call(["codesign", "--force", "--sign", "-", f], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+print(f"{len(seen)} dylibs bundled into {lib}")
+PY
