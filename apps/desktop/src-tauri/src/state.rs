@@ -37,6 +37,12 @@ pub struct Playback {
     /// Last time VOD progress was persisted.
     pub progress_saved_at: Option<Instant>,
     pub last_saved_pos: i64,
+    /// Live-stream auto-reconnect bookkeeping: consecutive end-of-file/error retries since the
+    /// last successful first frame, and whether the user stopped playback on purpose.
+    pub reconnect_attempts: u32,
+    pub user_stopped: bool,
+    /// Bumped on every load so a pending reconnect for an older stream is dropped.
+    pub generation: u64,
 }
 
 impl Playback {
@@ -48,6 +54,10 @@ impl Playback {
     }
     pub fn is_vod(&self) -> bool {
         matches!(self.item, PlaybackItem::Vod { .. } | PlaybackItem::Episode { .. })
+    }
+    /// Live TV (channel or raw URL): ends are provider hiccups, not the end of the content.
+    pub fn is_live(&self) -> bool {
+        matches!(self.item, PlaybackItem::Channel { .. } | PlaybackItem::Url)
     }
 }
 

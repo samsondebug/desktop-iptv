@@ -536,6 +536,12 @@ export interface MpvTrack {
   forced?: boolean;
 }
 
+export interface PlaybackNotice {
+  kind: "reconnecting";
+  message: string;
+  attempt: number;
+}
+
 // ---------- backup ----------
 
 export interface BackupSummary {
@@ -621,6 +627,8 @@ export const events = {
     listen<PlaybackState>("playback_state", (e) => cb(e.payload)),
   onDvr: (cb: (ev: DvrEvent) => void): Promise<UnlistenFn> => listen<DvrEvent>("dvr_event", (e) => cb(e.payload)),
   onPanesChanged: (cb: (panes: PaneInfo[]) => void): Promise<UnlistenFn> => listen<PaneInfo[]>("panes_changed", (e) => cb(e.payload)),
+  /** Backend-initiated playback notices (live-stream auto-reconnect). */
+  onPlaybackNotice: (cb: (n: PlaybackNotice) => void): Promise<UnlistenFn> => listen<PlaybackNotice>("playback_notice", (e) => cb(e.payload)),
   /** Favorites / overrides changed behind the UI's back (e.g. a restore finished applying). */
   onCatalogChanged: (cb: (playlistId: number) => void): Promise<UnlistenFn> => listen<number>("catalog_changed", (e) => cb(e.payload)),
   onPaneEngine: (cb: (label: string, ev: EngineEvent) => void): Promise<UnlistenFn> =>

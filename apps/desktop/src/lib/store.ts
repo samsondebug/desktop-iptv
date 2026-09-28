@@ -229,15 +229,20 @@ export const useApp = create<AppStore>((set, get) => ({
         case "buffering":
           set({ buffering: ev.active });
           break;
-        case "end_file":
-          if (ev.error) {
+        case "end_file": {
+          const live = !!get().playback && !get().playback?.is_vod && get().playback?.item.kind !== "none";
+          if (live) {
+            // The backend reconnects live streams on its own (see playback_notice); show the
+            // spinner and keep the reason as the banner text until the first frame is back.
+            set({ buffering: true, lastError: ev.error ? `Stream error: ${ev.error} — reconnecting…` : "Stream ended — reconnecting…" });
+          } else if (ev.error) {
             set({ lastError: ev.error, buffering: false });
             get().pushToast({ level: "error", title: "Stream ended with an error", body: ev.error });
-          } else if (ev.reason === "eof") {
+          } else {
             set({ buffering: false });
-            if (!get().playback?.is_vod) get().pushToast({ level: "info", title: "Stream ended", body: "The provider closed the stream." });
           }
           break;
+        }
         case "log":
           set((s) => ({ engineLog: [...s.engineLog.slice(-199), { level: ev.level, text: ev.text, at: Date.now() }] }));
           break;
@@ -287,6 +292,9 @@ export const useApp = create<AppStore>((set, get) => ({
     });
 
     await events.onPanesChanged((panes) => set({ panes }));
+    await events.onPlaybackNotice((n) => {
+      if (n.attempt === 1 || n.attempt % 3 === 0) get().pushToast({ level: n.attempt >= 6 ? "error" : "info", title: "Reconnecting", body: n.message });
+    });
     await events.onCatalogChanged(async () => {
       await get().refreshSidebarLists();
       set((s) => ({ listVersion: s.listVersion + 1 }));

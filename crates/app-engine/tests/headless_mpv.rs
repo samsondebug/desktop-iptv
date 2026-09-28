@@ -58,6 +58,12 @@ fn plays_a_mpegts_file_and_reports_zap_and_telemetry() {
         return;
     }
     eprintln!("engine: {}", engine.describe());
+    // Option plumbing: the escaped list value must survive mpv's key/value parser intact.
+    let lavf = engine.get_property("stream-lavf-o").unwrap().unwrap_or_default();
+    eprintln!("stream-lavf-o = {lavf}");
+    assert!(lavf.contains("reconnect_on_http_error=4xx,5xx"), "lavf list mangled: {lavf}");
+    assert!(lavf.contains("reconnect_at_eof=1"), "{lavf}");
+    assert_eq!(engine.get_property("sid").unwrap().as_deref(), Some("no"));
 
     let (tx, rx) = mpsc::channel::<EngineEvent>();
     engine.set_listener(Arc::new(move |ev| {

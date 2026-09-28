@@ -58,6 +58,19 @@ export default function PaneApp({ label }: { label: string }) {
     };
   }, [label]);
 
+  // The pane may have been opened already tuned (main window "open pane with this channel"):
+  // follow the backend's channel id so the header and the picker highlight match.
+  const infoChannelId = info?.channel_id ?? null;
+  useEffect(() => {
+    if (infoChannelId == null) {
+      if (info && !info.playing) setCurrent(null);
+      return;
+    }
+    if (current?.id === infoChannelId) return;
+    ipc.getChannel(infoChannelId).then(setCurrent).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [infoChannelId]);
+
   useEffect(() => {
     if (playlistId == null) return;
     const t = window.setTimeout(() => {

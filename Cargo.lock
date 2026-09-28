@@ -976,6 +976,7 @@ dependencies = [
  "app-engine",
  "app-net",
  "bytes",
+ "dirs",
  "futures-util",
  "hex",
  "raw-window-handle",

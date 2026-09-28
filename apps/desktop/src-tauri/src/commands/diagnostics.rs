@@ -387,6 +387,19 @@ pub fn diag_report(state: State<'_, AppState>) -> CmdResult<String> {
     let traces = trace::snapshot();
     s.push_str(&format!("\nhttp trace ({} requests, newest last, secrets redacted):\n", traces.len()));
     s.push_str(&trace::render(&traces));
+
+    // ---- log file tail (this run) ----
+    if let Some(path) = crate::log_path() {
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            let lines: Vec<&str> = text.lines().collect();
+            let tail = &lines[lines.len().saturating_sub(150)..];
+            s.push_str(&format!("\nlog file ({}), last {} lines:\n", path.display(), tail.len()));
+            for l in tail {
+                s.push_str(l);
+                s.push('\n');
+            }
+        }
+    }
     Ok(redact(&s))
 }
 

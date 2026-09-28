@@ -26,12 +26,37 @@ pub const EV_IMPORT_PROGRESS: &str = "import_progress";
 /// `sync::ImportDone`
 pub const EV_IMPORT_DONE: &str = "import_done";
 
+/// Where the log file lives: `<app data dir>/desktop-iptv.log` (same folder as the catalog).
+/// Truncated at every start so a support report is always "this run". Every line already went
+/// through `redact` at the call site.
+pub fn log_path() -> Option<std::path::PathBuf> {
+    let dir = dirs::data_dir()?.join("dev.desktopiptv.app");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("desktop-iptv.log"))
+}
+
 fn init_tracing() {
+    use tracing_subscriber::fmt::writer::MakeWriterExt;
     use tracing_subscriber::{fmt, EnvFilter};
     let filter = EnvFilter::try_from_env("DESKTOP_IPTV_LOG")
         .or_else(|_| EnvFilter::try_from_default_env())
         .unwrap_or_else(|_| EnvFilter::new("info,desktop_iptv_lib=debug,app_engine=debug,app_net=info"));
-    let _ = fmt().with_env_filter(filter).with_target(true).compact().try_init();
+    let file = log_path().and_then(|p| std::fs::File::create(p).ok());
+    match file {
+        Some(f) => {
+            let writer = std::io::stderr.and(std::sync::Mutex::new(f));
+            let _ = fmt()
+                .with_env_filter(filter)
+                .with_target(true)
+                .with_ansi(false)
+                .compact()
+                .with_writer(writer)
+                .try_init();
+        }
+        None => {
+            let _ = fmt().with_env_filter(filter).with_target(true).compact().try_init();
+        }
+    }
 }
 
 /// Native surface id for libmpv's `wid` from the main window handle.
@@ -73,6 +98,16 @@ fn on_engine_event(app: &tauri::AppHandle, ev: EngineEvent) {
             };
             if due {
                 commands::playback::save_progress_now(&state);
+            }
+        }
+        EngineEvent::PlaybackStarted { .. } => {
+            state.playback.lock().unwrap().reconnect_attempts = 0;
+        }
+        // Live TV: an end-of-file or a decode/network error is a provider hiccup — reconnect.
+        EngineEvent::EndFile { ref reason, ref error, .. } if state.playback.lock().unwrap().is_live() => {
+            let why = error.clone().unwrap_or_else(|| reason.clone());
+            if commands::playback::schedule_reconnect(app, &state, &why).is_none() {
+                tracing::warn!(reason, ?error, "live stream ended; not reconnecting");
             }
         }
         EngineEvent::EndFile { reason, .. } if reason == "eof" => {

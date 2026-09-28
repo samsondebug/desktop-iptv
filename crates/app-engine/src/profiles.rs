@@ -33,6 +33,11 @@ pub fn startup_options(wid: Option<i64>, hwdec: &str, log_level: &str) -> Vec<(S
         ("vo", VO_CHAIN),
         ("hwdec", hwdec),
         ("volume-max", "130"),
+        // Live TV streams carry EIA-608/708 captions that render as garbage over the picture
+        // (and providers' teletext). Subtitles stay off unless the user turns them on.
+        ("sid", "no"),
+        ("secondary-sid", "no"),
+        ("sub-auto", "no"),
         ("audio-client-name", app_core::PRODUCT_NAME),
         ("title", app_core::PRODUCT_NAME),
         ("msg-level", &format!("all={log_level}")),
@@ -70,8 +75,14 @@ pub fn profile_options(profile: ProfileMode, stable_cache_secs: u16) -> Vec<(Str
     ];
     // `stream-lavf-o` is a key=value list option; the `-add` suffix only exists for the CLI/conf
     // parser, so the client API gets the full list in one go.
+    // Same recovery set the established players ship: reconnect on network errors, on 4xx/5xx
+    // (panels answer 5xx while a stream restarts), at EOF (live streams "end" when a node is
+    // rotated), and never reuse a persistent HTTP connection across those retries. The value
+    // "4xx,5xx" contains the list separator, hence mpv's `%len%` escape.
     let lavf = |delay_max: u32| {
-        format!("reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max={delay_max}")
+        format!(
+            "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=%7%4xx,5xx,reconnect_at_eof=1,reconnect_delay_max={delay_max},http_persistent=0,http_multiple=0"
+        )
     };
     let specific: Vec<(&str, String)> = match profile {
         ProfileMode::LowLatency => vec![

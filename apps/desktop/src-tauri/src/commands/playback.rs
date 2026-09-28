@@ -4,7 +4,7 @@ use super::{err, require_feature, CmdResult};
 use crate::state::{AppState, PlaybackItem};
 use app_core::*;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub const EV_PLAYBACK: &str = "playback_state";
 
@@ -70,7 +70,75 @@ pub fn do_load(
     pb.item = item;
     pb.progress_saved_at = None;
     pb.last_saved_pos = start_secs.unwrap_or(0.0) as i64;
+    pb.user_stopped = false;
+    pb.generation = pb.generation.wrapping_add(1);
     Ok(())
+}
+
+/// Maximum consecutive automatic reconnects for a live stream before giving up.
+pub const MAX_RECONNECTS: u32 = 10;
+
+/// Backoff for the n-th consecutive reconnect (1-based): 1 s, 2 s, 4 s, 8 s, then 15 s.
+pub fn reconnect_delay(attempt: u32) -> std::time::Duration {
+    std::time::Duration::from_secs((1u64 << attempt.saturating_sub(1).min(3)).min(15))
+}
+
+/// A live stream ended (EOF or error) without the user asking for it: reload the same URL after
+/// a backoff, keeping the item and profile. Returns the attempt number, or `None` when there is
+/// nothing to retry (VOD, user stop, too many attempts).
+pub fn schedule_reconnect(app: &AppHandle, state: &AppState, why: &str) -> Option<u32> {
+    let (url, item, profile, attempt, generation) = {
+        let mut pb = state.playback.lock().unwrap();
+        if !pb.is_live() || pb.user_stopped {
+            return None;
+        }
+        let url = pb.stream_url.clone()?;
+        pb.reconnect_attempts += 1;
+        if pb.reconnect_attempts > MAX_RECONNECTS {
+            return None;
+        }
+        (url, pb.item.clone(), pb.profile, pb.reconnect_attempts, pb.generation)
+    };
+    let delay = reconnect_delay(attempt);
+    tracing::warn!(attempt, delay_ms = delay.as_millis() as u64, why, "live stream ended — reconnecting");
+    let _ = app.emit(
+        EV_NOTICE,
+        PlaybackNotice {
+            kind: "reconnecting".into(),
+            message: format!("Stream ended ({why}) — reconnecting, attempt {attempt}/{MAX_RECONNECTS}"),
+            attempt,
+        },
+    );
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(delay).await;
+        let Some(state) = app2.try_state::<AppState>() else { return };
+        {
+            let pb = state.playback.lock().unwrap();
+            // The user zapped, stopped, or something else reloaded meanwhile: stand down.
+            if pb.generation != generation || pb.user_stopped || pb.item != item {
+                return;
+            }
+        }
+        match do_load(&state, &url, profile, item, None) {
+            Ok(()) => {
+                // Keep the attempt counter across this reload; PlaybackStarted resets it.
+                state.playback.lock().unwrap().reconnect_attempts = attempt;
+                emit_playback(&app2, &state);
+            }
+            Err(e) => tracing::warn!(error = %e, "reconnect load failed"),
+        }
+    });
+    Some(attempt)
+}
+
+pub const EV_NOTICE: &str = "playback_notice";
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PlaybackNotice {
+    pub kind: String,
+    pub message: String,
+    pub attempt: u32,
 }
 
 #[tauri::command]
@@ -156,6 +224,8 @@ pub fn stop_playback(state: State<'_, AppState>) -> CmdResult<PlaybackState> {
     let mut pb = state.playback.lock().unwrap();
     pb.item = PlaybackItem::None;
     pb.stream_url = None;
+    pb.user_stopped = true;
+    pb.generation = pb.generation.wrapping_add(1);
     drop(pb);
     Ok(playback_state(&state))
 }

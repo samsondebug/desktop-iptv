@@ -124,7 +124,9 @@ export default function App() {
   );
 
   return (
-    <div className="h-full w-full flex flex-col" style={{ background: ui.fullscreen ? "transparent" : "var(--bg)" }}>
+    // The root stays transparent: the native video surface sits *behind* the webview on Windows/macOS,
+    // so every chrome region paints its own opaque background and the player pane paints none.
+    <div className="h-full w-full flex flex-col" style={{ background: "transparent" }}>
       {!ui.fullscreen && <TopBar />}
       <div className="flex-1 min-h-0 flex">
         {!ui.fullscreen && <Rail />}

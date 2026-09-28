@@ -20,6 +20,7 @@ from urllib.parse import parse_qs, urlparse
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8090
 LIVE_KBPS = int(os.environ.get("MOCK_LIVE_KBPS", "8000"))
+LIVE_CUT_SECS = float(os.environ.get("MOCK_LIVE_CUT_SECS", "0"))
 MEDIA = sys.argv[2] if len(sys.argv) > 2 else None
 USER, PASS = "user", "pass"
 STALKER_TOKEN = "mock-stalker-token"
@@ -154,6 +155,9 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         chunk = 64 * 1024
         per_chunk = chunk * 8 / (LIVE_KBPS * 1000.0)
+        # MOCK_LIVE_CUT_SECS=N closes every live connection after N seconds (simulates a provider
+        # node rotation / connection cap) so the player's reconnect path can be exercised.
+        deadline = time.time() + LIVE_CUT_SECS if LIVE_CUT_SECS > 0 else None
         try:
             while True:
                 with open(MEDIA, "rb") as f:
@@ -164,6 +168,10 @@ class H(BaseHTTPRequestHandler):
                         self.wfile.write(b"%x\r\n%s\r\n" % (len(data), data))
                         self.wfile.flush()
                         time.sleep(per_chunk)
+                        if deadline and time.time() > deadline:
+                            self.wfile.write(b"0\r\n\r\n")
+                            self.wfile.flush()
+                            return
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
