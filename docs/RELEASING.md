@@ -22,9 +22,10 @@ How a version gets from `main` to a link friends can click.
 2. **Public repo.** GitHub Pages on the free plan and `releases/latest/download/…` links for people
    who are not signed in both need the repo to be public. Actions minutes are also free on public
    repos (private: 2,000 min/month with macOS billed 10×; one release ≈ 350 min).
-3. **Static CRT on Windows** (`.cargo/config.toml`): the exe has no `vcruntime140.dll` dependency,
-   so it runs on a fresh Windows without a VC++ redistributable. libmpv-2.dll is a MinGW build and
-   is self-contained; WebView2 is installed by the NSIS bootstrapper when missing.
+3. **No runtime prerequisites on Windows.** `tauri-build` links `vcruntime` statically, so the exe
+   imports only system DLLs plus the UCRT (`api-ms-win-crt-*`, part of Windows 10/11) — verified
+   with `pefile` on the shipped build; no VC++ redistributable needed. libmpv-2.dll (MinGW build)
+   imports only system DLLs; WebView2 is installed by the NSIS bootstrapper when missing.
 
 ## Shipping a version
 

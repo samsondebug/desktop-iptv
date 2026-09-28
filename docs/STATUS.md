@@ -99,8 +99,9 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
 * Self-updater: `tauri-plugin-updater` polls the signed `latest.json` on GitHub Releases 12 s after
   start and every 6 h; "Install & restart" toast + manual check in Settings → About. Minisign
   public key in `tauri.conf.json`; private key is the `TAURI_SIGNING_PRIVATE_KEY` repo secret.
-* Windows exe links the CRT statically (`.cargo/config.toml`) — no VC++ redistributable needed;
-  NSIS fetches WebView2 when missing; per-user or per-machine install.
+* Windows exe imports only system DLLs + UCRT (tauri-build links vcruntime statically; checked
+  with `pefile`) — no VC++ redistributable needed; NSIS fetches WebView2 when missing; per-user
+  or per-machine install.
 * Download page `site/index.html` → GitHub Pages (`pages.yml`), reads the latest release from the
   API, OS-aware button, legal block, SmartScreen/Gatekeeper notes.
 * `release.yml` publishes (not drafts) on `v*` tags; Intel macOS moved to `macos-15-intel`.
