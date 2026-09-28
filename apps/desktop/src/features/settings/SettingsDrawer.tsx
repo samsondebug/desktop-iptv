@@ -3,6 +3,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { ipc, type ConfigPayload, type EpgSource, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
 import Icon from "../../components/Icon";
+import { checkForUpdates, installUpdate } from "../../lib/updater";
 
 const HWDEC: { v: HwDecoding; label: string; os?: string[] }[] = [
   { v: "auto-safe", label: "Auto (safe) — recommended" },
@@ -657,10 +658,59 @@ function BackupPanel() {
   );
 }
 
+function UpdatePanel() {
+  const boot = useApp((s) => s.boot)!;
+  const update = useApp((s) => s.update);
+  const busy = update.phase === "checking" || update.phase === "downloading" || update.phase === "installing";
+  let line: string;
+  switch (update.phase) {
+    case "checking":
+      line = "Checking…";
+      break;
+    case "none":
+      line = `Up to date · checked ${new Date(update.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      break;
+    case "available":
+      line = `${update.version} is available${update.date ? ` (${update.date.slice(0, 10)})` : ""}`;
+      break;
+    case "downloading":
+      line = update.total ? `Downloading ${update.version} · ${Math.round((update.done / update.total) * 100)}%` : `Downloading ${update.version}…`;
+      break;
+    case "installing":
+      line = `Installing ${update.version}…`;
+      break;
+    case "error":
+      line = update.message.includes("Could not fetch") || update.message.includes("404") ? "No release manifest published yet." : update.message;
+      break;
+    default:
+      line = "Checks quietly on start and every 6 hours.";
+  }
+  return (
+    <div className="flex items-center gap-3 flex-wrap">
+      <div style={{ fontFamily: "var(--mono)", fontSize: 11.5 }}>
+        {boot.product} {boot.version}
+      </div>
+      {update.phase === "available" ? (
+        <button className="btn primary" disabled={busy} onClick={() => void installUpdate()}>
+          <Icon name="download" size={12} />
+          Install {update.version} & restart
+        </button>
+      ) : (
+        <button className="btn" disabled={busy} onClick={() => void checkForUpdates(true)}>
+          <Icon name="refresh" size={12} />
+          Check for updates
+        </button>
+      )}
+      <div style={{ color: update.phase === "error" ? "var(--danger)" : "var(--text-dim)", fontSize: 12 }}>{line}</div>
+    </div>
+  );
+}
+
 function AboutTab() {
   const boot = useApp((s) => s.boot)!;
   return (
     <section className="flex flex-col gap-3" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+      <UpdatePanel />
       <BackupPanel />
       <div>{boot.legal_block}</div>
       <div style={{ fontFamily: "var(--mono)", fontSize: 11.5, color: "var(--text-dim)" }}>

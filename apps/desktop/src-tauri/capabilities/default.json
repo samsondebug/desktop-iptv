@@ -1,8 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2/capability",
   "identifier": "default",
-  "description": "Main window and multiscreen panes: our own commands, file-open dialog, external link opener, window sizing/PiP.",
-  "windows": ["main", "pane-*"],
+  "description": "Main window and multiscreen panes: our own commands, file-open dialog, external link opener, window sizing/PiP, updater + relaunch.",
+  "windows": [
+    "main",
+    "pane-*"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-set-fullscreen",
@@ -25,6 +28,8 @@
     "core:webview:allow-webview-close",
     "dialog:allow-open",
     "dialog:allow-save",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "updater:default",
+    "process:default"
   ]
 }

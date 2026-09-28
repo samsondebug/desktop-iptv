@@ -3,6 +3,7 @@
  * paged from SQLite on demand. This store holds selection, playback and UI state only.
  */
 import { create } from "zustand";
+import type { UpdateStatus } from "./updater";
 import {
   events,
   ipc,
@@ -44,6 +45,8 @@ export interface Toast {
   title: string;
   body?: string;
   sticky?: boolean;
+  /** Optional primary action rendered as a button (the toast is dismissed after it runs). */
+  action?: { label: string; onClick: () => void };
 }
 
 export interface ResumePrompt {
@@ -93,6 +96,8 @@ interface AppStore {
 
   imports: Record<number, ImportProgress>;
   toasts: Toast[];
+  /** Self-updater state (lib/updater.ts). */
+  update: UpdateStatus;
   panes: PaneInfo[];
   mini: boolean;
   /** recording id → bytes (live progress) */
@@ -187,6 +192,7 @@ export const useApp = create<AppStore>((set, get) => ({
 
   imports: {},
   toasts: [],
+  update: { phase: "idle" },
   panes: [],
   mini: false,
   recordingBytes: {},

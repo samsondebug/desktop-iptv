@@ -20,6 +20,19 @@ export default function Toasts() {
               {t.body}
             </div>
           )}
+          {t.action && (
+            <div className="mt-2 flex justify-end">
+              <button
+                className="btn primary"
+                onClick={() => {
+                  dismiss(t.id);
+                  t.action?.onClick();
+                }}
+              >
+                {t.action.label}
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

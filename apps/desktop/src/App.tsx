@@ -4,6 +4,7 @@ import { ipc } from "./lib/ipc";
 import { useApp } from "./lib/store";
 import { useKeyboard } from "./lib/keys";
 import TopBar from "./components/TopBar";
+import { scheduleBackgroundChecks } from "./lib/updater";
 import Rail from "./components/Rail";
 import LegalGate from "./components/LegalGate";
 import Toasts from "./components/Toasts";
@@ -65,6 +66,9 @@ export default function App() {
   useEffect(() => {
     init().catch((e) => console.error("bootstrap failed", e));
   }, [init]);
+
+  // Quiet self-update checks (main window only; panes are children of this one).
+  useEffect(() => (ready ? scheduleBackgroundChecks() : undefined), [ready]);
 
   useThemeTokens();
 

@@ -46,20 +46,42 @@
       "lib/**/*"
     ],
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
       "nsis": {
         "installMode": "both",
         "installerIcon": "icons/icon.ico",
-        "languages": ["English"],
+        "languages": [
+          "English"
+        ],
         "displayLanguageSelector": false
       }
     },
     "linux": {
-      "deb": { "depends": ["libmpv2 | libmpv1"] },
-      "appimage": { "bundleMediaFramework": false }
+      "deb": {
+        "depends": [
+          "libmpv2 | libmpv1"
+        ]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
     },
     "macOS": {
       "minimumSystemVersion": "11.0"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZGNkU1RDQzNTEwQTkzMzEKUldReGt3cFJRMTF1LysrcUlEd1VLQVp0VlRIaTZRODRKK0Q5TG8va2Y2TERrckZjR0pGRk4zaksK",
+      "endpoints": [
+        "https://github.com/samsondebug/desktop-iptv/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

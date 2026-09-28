@@ -1,0 +1,8 @@
+# Windows: link the C runtime statically so the installed exe has no vcruntime140.dll /
+# msvcp140.dll dependency (fresh machines without a VC++ redistributable still run it). libmpv-2.dll
+# is a MinGW build and carries its own runtime. WebView2 is fetched by the installer's bootstrapper.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

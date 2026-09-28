@@ -94,11 +94,22 @@ still missing to match a store-quality release: code signing (Azure Trusted Sign
 unsigned builds trip SmartScreen on download), the updater plugin + `latest.json`, a real icon and
 product name, and optionally an MSIX wrap for the Microsoft Store.
 
+## Distribution (2026-09-28)
+
+* Self-updater: `tauri-plugin-updater` polls the signed `latest.json` on GitHub Releases 12 s after
+  start and every 6 h; "Install & restart" toast + manual check in Settings → About. Minisign
+  public key in `tauri.conf.json`; private key is the `TAURI_SIGNING_PRIVATE_KEY` repo secret.
+* Windows exe links the CRT statically (`.cargo/config.toml`) — no VC++ redistributable needed;
+  NSIS fetches WebView2 when missing; per-user or per-machine install.
+* Download page `site/index.html` → GitHub Pages (`pages.yml`), reads the latest release from the
+  API, OS-aware button, legal block, SmartScreen/Gatekeeper notes.
+* `release.yml` publishes (not drafts) on `v*` tags; Intel macOS moved to `macos-15-intel`.
+
 ## Next
 
-1. Code-sign the Windows build; add `tauri-plugin-updater`.
+1. Code-sign the Windows build (Azure Trusted Signing / OV cert) and notarize macOS (Apple
+   Developer account) — until then users click through SmartScreen / Gatekeeper once.
 2. macOS: run the DMG from `release.yml` once on real hardware (render API path may be needed).
-3. Tag `v0.1.0`.
 
 ## Known gaps
 
@@ -110,4 +121,3 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
   channel is playing (links expire).
 * Adaptive cache (§6.3) intentionally not shipped (flagged for later, opt-in).
 * Sports Hub not built (per CLAUDE.md: only once everything else is boringly stable).
-* Updater not wired (Tauri updater plugin is a small follow-up once a release URL exists).

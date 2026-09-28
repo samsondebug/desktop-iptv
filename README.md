@@ -6,8 +6,10 @@ diagnostics that prove the provider is at fault, cheap lifetime unlock.**
 > This app does not provide channels, playlists, or stream URLs. You bring your own source.
 > We do not support illegal services. We support the player, not the reseller.
 
-Architecture and rules live in [`CLAUDE.md`](./CLAUDE.md) (the build handoff). Status and exit
-tests are tracked in [`docs/STATUS.md`](./docs/STATUS.md).
+**Download:** <https://samsondebug.github.io/desktop-iptv/> (Windows, macOS, Linux — installed
+copies update themselves). Architecture and rules live in [`CLAUDE.md`](./CLAUDE.md) (the build
+handoff). Status and exit tests are tracked in [`docs/STATUS.md`](./docs/STATUS.md); how a version
+ships is in [`docs/RELEASING.md`](./docs/RELEASING.md).
 
 ## Stack
 
@@ -57,8 +59,10 @@ synthetic Xtream panel (user/pass, 1000 channels, EPG, VOD) and a Stalker portal
 (MAC `00:1A:79:12:34:56`) that both play the given MPEG-TS file as a paced live stream.
 
 Releases: push a `v*` tag — `.github/workflows/release.yml` builds Windows (NSIS/MSI, bundles
-libmpv), macOS (DMG, bundles libmpv from Homebrew) and Linux (deb/AppImage) installers. A Windows
-installer can also be cross-built from Linux: `cargo install cargo-xwin && apt install nsis`, drop
+libmpv), macOS (DMG, bundles libmpv from Homebrew) and Linux (deb/AppImage) installers, signs the
+updater artifacts and publishes them with `latest.json`; `site/index.html` (GitHub Pages) is the
+download page. Details in [`docs/RELEASING.md`](./docs/RELEASING.md). A Windows installer can also
+be cross-built from Linux: `cargo install cargo-xwin && apt install nsis`, drop
 `libmpv-2.dll` into `apps/desktop/src-tauri/lib/`, then
 `npx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis`.
 

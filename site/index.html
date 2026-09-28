@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>desktop-iptv — player-only IPTV client for Windows, macOS and Linux</title>
+<meta name="description" content="desktop-iptv is a player-only desktop IPTV client: native libmpv playback, live TV and the full EPG on one canvas, recording, downloads, diagnostics. Bring your own M3U, Xtream or Stalker source.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f1115'/%3E%3Cpath d='M22 15v28l24-14z' fill='%2359c4ff'/%3E%3Crect x='16' y='48' width='27' height='3.5' rx='1.75' fill='%23fff'/%3E%3Crect x='16' y='54' width='19' height='3.5' rx='1.75' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b0d11; --bg-elev: #12151b; --bg-elev-2: #1a1e26; --border: #262b35;
+    --text: #e8ebf0; --text-dim: #9aa3b2; --text-faint: #6b7484;
+    --accent: #59c4ff; --accent-ink: #06202f; --ok: #4cd97b; --warn: #f2b84b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+  header { padding: 56px 0 28px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand svg { width: 52px; height: 52px; flex: none; }
+  .brand h1 { margin: 0; font-size: 28px; letter-spacing: -0.01em; }
+  .brand .tag { color: var(--text-dim); margin: 2px 0 0; }
+  .hero { margin-top: 28px; padding: 24px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 14px; }
+  .cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-elev-2); color: var(--text); font-weight: 600; font-size: 15px; cursor: pointer; }
+  .btn:hover { text-decoration: none; border-color: #3a4150; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .btn.primary:hover { background: #7bd0ff; }
+  .btn svg { width: 18px; height: 18px; }
+  .meta { color: var(--text-dim); font-family: var(--mono); font-size: 12.5px; }
+  .others { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13.5px; color: var(--text-dim); }
+  .others a { white-space: nowrap; }
+  .legal { margin-top: 18px; padding: 14px 16px; border-left: 3px solid var(--warn); background: rgba(242,184,75,0.06); border-radius: 6px; font-size: 13.5px; color: var(--text); }
+  section { padding: 26px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .card b { display: block; margin-bottom: 4px; }
+  .card p { margin: 0; color: var(--text-dim); font-size: 13.5px; }
+  .steps { margin: 0; padding-left: 20px; color: var(--text-dim); font-size: 14px; }
+  .steps li { margin: 4px 0; }
+  code, kbd { font-family: var(--mono); font-size: 12.5px; background: var(--bg-elev-2); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); }
+  footer { padding: 26px 0 48px; color: var(--text-faint); font-size: 13px; border-top: 1px solid var(--border); }
+  footer a { color: var(--text-dim); }
+  .hidden { display: none; }
+  @media (max-width: 520px) { header { padding-top: 36px; } .brand h1 { font-size: 24px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0f1115"/><path d="M22 15v28l24-14z" fill="#59c4ff"/><rect x="16" y="48" width="27" height="3.5" rx="1.75" fill="#fff"/><rect x="16" y="54" width="19" height="3.5" rx="1.75" fill="#fff"/></svg>
+      <div>
+        <h1>desktop-iptv</h1>
+        <p class="tag">A player-only IPTV client for Windows, macOS and Linux. You bring the source.</p>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="cta">
+        <a id="dl-primary" class="btn primary" href="https://github.com/samsondebug/desktop-iptv/releases/latest">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="dl-primary-label">Download</span>
+        </a>
+        <div class="meta"><span id="dl-version">latest release</span><span id="dl-size"></span></div>
+      </div>
+      <div class="others" id="dl-others">
+        <a href="https://github.com/samsondebug/desktop-iptv/releases/latest">All downloads on GitHub →</a>
+      </div>
+      <div class="legal">
+        This app does not provide channels, playlists, or stream URLs. You bring your own source. We do not support illegal services. We support the player, not the reseller.
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>What it is</h2>
+    <div class="grid">
+      <div class="card"><b>Native playback</b><p>libmpv renders straight to the GPU — no browser video tag in the path. Hardware decoding (D3D11 / VideoToolbox), ~1 s channel changes, Low Latency and Stable cache profiles.</p></div>
+      <div class="card"><b>Live + guide on one canvas</b><p>Watch a channel while you scroll the full 7-day EPG. Now/Next card, favorites, recents, global search across 40,000+ channels.</p></div>
+      <div class="card"><b>Your source, three ways</b><p>Xtream Codes, M3U/M3U8, and Stalker/MAC portals (experimental). Multiple playlists, multiple EPGs, EPG offset and overrides.</p></div>
+      <div class="card"><b>Record, download, resume</b><p>Record live TV (scheduled from the guide, with overrun), download movies and episodes with resume, continue watching, auto-next.</p></div>
+      <div class="card"><b>Mini player &amp; multiscreen</b><p>Picture-in-picture that remembers its spot; a second pane for a second channel; parental PIN and keyword filter.</p></div>
+      <div class="card"><b>Diagnostics that settle it</b><p>HTTP trace, stream probe and source checks tell you whether buffering is the app, the network or the provider. Exports are redacted.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Install</h2>
+    <div class="grid">
+      <div class="card">
+        <b>Windows 10 / 11 (64-bit)</b>
+        <ol class="steps">
+          <li>Download the <code>-setup.exe</code> and run it. It installs per-user (no admin) or for all users.</li>
+          <li>The installer is not code-signed yet, so SmartScreen shows <em>Windows protected your PC</em> once. Click <kbd>More info</kbd> → <kbd>Run anyway</kbd>. Edge may also ask you to <kbd>Keep</kbd> the download.</li>
+          <li>WebView2 is fetched automatically if your PC does not have it (most do).</li>
+        </ol>
+      </div>
+      <div class="card">
+        <b>macOS 11+</b>
+        <ol class="steps">
+          <li>Open the <code>.dmg</code> for your Mac (Apple Silicon = <code>aarch64</code>, Intel = <code>x64</code>) and drag the app to Applications.</li>
+          <li>The app is not notarized yet: on first launch, go to <kbd>System Settings</kbd> → <kbd>Privacy &amp; Security</kbd> and click <kbd>Open Anyway</kbd>.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <b>Linux</b>
+        <ol class="steps">
+          <li><code>.deb</code> (Debian/Ubuntu) pulls in <code>libmpv2</code>; for the <code>.AppImage</code> install <code>libmpv2</code> (or <code>libmpv1</code>) with your package manager first.</li>
+        </ol>
+      </div>
+    </div>
+    <p style="color: var(--text-dim); font-size: 13.5px; margin: 14px 0 0;">Installed copies check for updates on start and install them in place. Nothing is sent anywhere else: no analytics, no accounts.</p>
+  </section>
+
+  <section>
+    <h2>First run</h2>
+    <ol class="steps">
+      <li>Read and accept the player-only notice.</li>
+      <li>Add your source: Xtream (server URL, username, password), an M3U URL or file, or a Stalker portal + MAC (Settings → Playlists → Experimental).</li>
+      <li>Pick a channel. Press <kbd>F</kbd> for fullscreen, <kbd>I</kbd> for the stats HUD, <kbd>R</kbd> to record, <kbd>/</kbd> to search.</li>
+      <li>Buffering? Open Diagnostics (<kbd>Shift</kbd>+<kbd>D</kbd>) and change one variable at a time.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <a href="https://github.com/samsondebug/desktop-iptv">Source on GitHub</a> ·
+    <a href="https://github.com/samsondebug/desktop-iptv/releases">All releases</a> ·
+    <a href="https://github.com/samsondebug/desktop-iptv/issues">Report a problem</a>
+    <br>desktop-iptv is an independent project and is not affiliated with any IPTV provider.
+  </footer>
+</div>
+
+<script>
+(function () {
+  var REPO = "samsondebug/desktop-iptv";
+  var RELEASES = "https://github.com/" + REPO + "/releases/latest";
+  var ua = navigator.userAgent || "";
+  var plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+  var os = /Windows/i.test(ua) || /Win/i.test(plat) ? "windows" : /Mac/i.test(plat) || /Macintosh/i.test(ua) ? "macos" : /Linux/i.test(plat) || /Linux/i.test(ua) ? "linux" : "other";
+
+  function mb(n) { return n >= 1e6 ? (n / 1048576).toFixed(0) + " MB" : (n / 1024).toFixed(0) + " KB"; }
+  function classify(name) {
+    var n = name.toLowerCase();
+    if (/-setup\.exe$/.test(n)) return { key: "win-exe", label: "Windows installer (.exe)", os: "windows", rank: 0 };
+    if (/\.msi$/.test(n)) return { key: "win-msi", label: "Windows (.msi)", os: "windows", rank: 1 };
+    if (/aarch64.*\.dmg$/.test(n) || /arm64.*\.dmg$/.test(n)) return { key: "mac-arm", label: "macOS Apple Silicon (.dmg)", os: "macos", rank: 0 };
+    if (/\.dmg$/.test(n)) return { key: "mac-x64", label: "macOS Intel (.dmg)", os: "macos", rank: 1 };
+    if (/\.appimage$/.test(n)) return { key: "linux-appimage", label: "Linux AppImage", os: "linux", rank: 0 };
+    if (/\.deb$/.test(n)) return { key: "linux-deb", label: "Linux .deb", os: "linux", rank: 1 };
+    return null;
+  }
+  function osLabel(o) { return o === "windows" ? "Windows" : o === "macos" ? "macOS" : o === "linux" ? "Linux" : ""; }
+
+  var primary = document.getElementById("dl-primary");
+  var label = document.getElementById("dl-primary-label");
+  var version = document.getElementById("dl-version");
+  var size = document.getElementById("dl-size");
+  var others = document.getElementById("dl-others");
+  label.textContent = os === "other" ? "Download" : "Download for " + osLabel(os);
+
+  fetch("https://api.github.com/repos/" + REPO + "/releases/latest", { headers: { Accept: "application/vnd.github+json" } })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (rel) {
+      var assets = (rel.assets || []).map(function (a) { var c = classify(a.name); return c && { name: a.name, url: a.browser_download_url, size: a.size, c: c }; }).filter(Boolean);
+      if (!assets.length) throw new Error("no assets");
+      assets.sort(function (a, b) { return a.c.os.localeCompare(b.c.os) || a.c.rank - b.c.rank; });
+      var pick = assets.filter(function (a) { return a.c.os === os; })[0] || assets.filter(function (a) { return a.c.os === "windows"; })[0] || assets[0];
+      primary.href = pick.url;
+      label.textContent = "Download for " + osLabel(pick.c.os);
+      version.textContent = (rel.tag_name || rel.name || "") + " · " + (rel.published_at ? new Date(rel.published_at).toLocaleDateString() : "");
+      size.textContent = " · " + mb(pick.size) + " · " + pick.name;
+      others.innerHTML = "";
+      assets.forEach(function (a) {
+        if (a === pick) return;
+        var el = document.createElement("a");
+        el.href = a.url; el.textContent = a.c.label + " (" + mb(a.size) + ")";
+        others.appendChild(el);
+      });
+      var all = document.createElement("a");
+      all.href = RELEASES; all.textContent = "Release notes →";
+      others.appendChild(all);
+    })
+    .catch(function () {
+      // Private repo, rate limit or no release yet: fall back to the releases page.
+      primary.href = RELEASES;
+      version.textContent = "latest release on GitHub";
+    });
+})();
+</script>
+</body>
+</html>
