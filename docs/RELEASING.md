@@ -108,8 +108,9 @@ at microsoft.com/wdsi speeds that up.
 
 ## What users see until the builds are code-signed
 
-* **Windows**: SmartScreen "Windows protected your PC" → *More info → Run anyway*; Edge/Chrome may
-  flag the download as uncommon → *Keep*. Fix: the section above.
+* **Windows**: signed since v0.1.0 (publisher *David Krouskoff*). A new certificate has no
+  SmartScreen reputation yet, so *More info → Run anyway* can still appear for the first days/
+  downloads; Edge/Chrome may flag the download as uncommon → *Keep*.
 * **macOS**: "cannot be opened because the developer cannot be verified" → System Settings →
   Privacy & Security → *Open Anyway*. Fix: an Apple Developer account (US$99/year); set the
   `APPLE_*` secrets already referenced in `release.yml` and tauri-action signs + notarizes.

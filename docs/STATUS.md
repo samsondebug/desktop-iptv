@@ -106,11 +106,14 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
   API, OS-aware button, legal block, SmartScreen/Gatekeeper notes.
 * `release.yml` publishes (not drafts) on `v*` tags; Intel macOS moved to `macos-15-intel`.
 
+* **v0.1.0 released 2026-09-28** from `release.yml`: signed Windows exe/msi (Azure Artifact
+  Signing, publisher David Krouskoff), macOS DMGs (unsigned), Linux deb/AppImage/rpm, `latest.json`.
+  Download page: https://samsondebug.github.io/desktop-iptv/
+
 ## Next
 
-1. Code-sign the Windows build (Azure Trusted Signing / OV cert) and notarize macOS (Apple
-   Developer account) — until then users click through SmartScreen / Gatekeeper once.
-2. macOS: run the DMG from `release.yml` once on real hardware (render API path may be needed).
+1. Notarize macOS (Apple Developer account) — until then Mac users use *Open Anyway* once.
+2. macOS: run the DMG once on real hardware (render API path may be needed).
 
 ## Known gaps
 
