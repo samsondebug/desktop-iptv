@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { ipc, type ConfigPayload, type EpgSource, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
+import { ipc, type ConfigPayload, type CurationState, type EpgSource, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
 import Icon from "../../components/Icon";
 import { checkForUpdates, installUpdate } from "../../lib/updater";
@@ -330,7 +330,57 @@ function PlaylistsTab({ draft, set }: { draft: ConfigPayload; set: <K extends ke
           </div>
         );
       })}
+      <CurationSection />
     </section>
+  );
+}
+
+/** Hidden channels & groups management (curation lives per install, refresh-safe). */
+function CurationSection() {
+  const listVersion = useApp((s) => s.listVersion);
+  const playlists = useApp((s) => s.playlists);
+  const [cur, setCur] = useState<CurationState | null>(null);
+
+  useEffect(() => {
+    ipc.curationState().then(setCur).catch(() => setCur(null));
+  }, [listVersion]);
+
+  const bump = () => useApp.setState((s) => ({ listVersion: s.listVersion + 1 }));
+  if (!cur || (cur.hidden_channels.length === 0 && cur.hidden_groups.length === 0 && cur.renamed_count === 0)) return null;
+  const pname = (id: number) => playlists.find((p) => p.id === id)?.name;
+
+  return (
+    <div className="rounded-md p-3 mt-2" style={{ background: "var(--bg-elev-2)" }}>
+      <div className="font-semibold" style={{ fontSize: 12.5 }}>
+        Hidden & renamed
+      </div>
+      <div style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
+        {cur.renamed_count > 0 && <>{cur.renamed_count} renamed channel{cur.renamed_count === 1 ? "" : "s"} (rename again from the channel's right-click menu). </>}
+        Hiding only changes this app — the source is untouched.
+      </div>
+      {cur.hidden_groups.map((g) => (
+        <div key={`${g.playlist_id}:${g.group_title}`} className="flex items-center gap-2 mt-2" style={{ fontSize: 12.5 }}>
+          <Icon name="eyeOff" size={13} style={{ color: "var(--text-faint)" }} />
+          <span className="truncate flex-1">
+            {g.group_title || "(no group)"} <span style={{ color: "var(--text-faint)" }}>· group · {g.channel_count.toLocaleString()} channels{pname(g.playlist_id) ? ` · ${pname(g.playlist_id)}` : ""}</span>
+          </span>
+          <button className="btn" style={{ fontSize: 11.5 }} onClick={() => void ipc.setGroupHidden(g.playlist_id, g.group_title, false).then(bump)}>
+            Unhide
+          </button>
+        </div>
+      ))}
+      {cur.hidden_channels.map((c) => (
+        <div key={c.channel_id} className="flex items-center gap-2 mt-2" style={{ fontSize: 12.5 }}>
+          <Icon name="eyeOff" size={13} style={{ color: "var(--text-faint)" }} />
+          <span className="truncate flex-1">
+            {c.name} <span style={{ color: "var(--text-faint)" }}>{pname(c.playlist_id) ? `· ${pname(c.playlist_id)}` : ""}</span>
+          </span>
+          <button className="btn" style={{ fontSize: 11.5 }} onClick={() => void ipc.setChannelHidden(c.channel_id, false).then(bump)}>
+            Unhide
+          </button>
+        </div>
+      ))}
+    </div>
   );
 }
 

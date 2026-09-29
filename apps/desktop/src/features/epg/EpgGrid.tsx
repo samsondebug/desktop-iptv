@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ipc, type ChannelRecord, type Programme } from "../../lib/ipc";
+import { ipc, type ChannelRecord, type Programme, type ReminderRecord } from "../../lib/ipc";
 import { EPG_SHIFT, LIST_ENTER, LIST_MOVE } from "../../lib/keys";
 import { fmtTime, useApp } from "../../lib/store";
 import { useChannelSource } from "../live/useChannelSource";
@@ -44,6 +44,8 @@ export default function EpgGrid() {
   const current = useApp((s) => s.currentChannel);
   const favoriteIds = useApp((s) => s.favoriteIds);
   const toggleFavorite = useApp((s) => s.toggleFavorite);
+  const hideChannel = useApp((s) => s.hideChannel);
+  const hideGroup = useApp((s) => s.hideGroup);
   const selectedIndex = useApp((s) => s.ui.selectedIndex);
   const setUi = useApp((s) => s.setUi);
   const search = useApp((s) => s.search);
@@ -57,6 +59,7 @@ export default function EpgGrid() {
   const [hover, setHover] = useState<Hover | null>(null);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [gridW, setGridW] = useState(800);
+  const [reminders, setReminders] = useState<ReminderRecord[]>([]);
   const [, bump] = useState(0);
   const parentRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new Map<number, Programme[]>());
@@ -71,6 +74,15 @@ export default function EpgGrid() {
     const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  // Upcoming reminders (for the context-menu toggle and the bell marker on programmes).
+  useEffect(() => {
+    void ipc.listReminders().then(setReminders).catch(() => {});
+  }, [menu === null]);
+  const reminderFor = useCallback(
+    (channelId: number, start: number) => reminders.find((r) => r.channel_id === channelId && r.start === start),
+    [reminders],
+  );
 
   useEffect(() => {
     const el = parentRef.current;
@@ -295,7 +307,10 @@ export default function EpgGrid() {
                         onMouseMove={(ev) => setHover((h) => (h ? { ...h, x: ev.clientX, y: ev.clientY } : h))}
                         onMouseLeave={() => setHover(null)}
                       >
-                        <span className="epg-prog-title">{p.title}</span>
+                        <span className="epg-prog-title">
+                          {ch && reminderFor(ch.id, p.start) && <Icon name="bell" size={10} style={{ color: "var(--accent)", marginRight: 4, flexShrink: 0, display: "inline-block", verticalAlign: "-1px" }} />}
+                          {p.title}
+                        </span>
                         <span className="epg-prog-time">{fmtTime(p.start)}</span>
                       </div>
                     );
@@ -340,6 +355,29 @@ export default function EpgGrid() {
           <MenuItem icon="play" label="Play" onClick={() => { void play(menu.ch); setMenu(null); }} />
           <MenuItem icon={favoriteIds.has(menu.ch.id) ? "starFilled" : "star"} label={favoriteIds.has(menu.ch.id) ? "Remove favorite" : "Add favorite"} onClick={() => { void toggleFavorite(menu.ch); setMenu(null); }} />
           <MenuItem icon="edit" label="Edit EPG (tvg-id)" onClick={() => { setUi({ epgEditChannel: menu.ch }); setMenu(null); }} />
+          <MenuItem icon="edit" label="Rename channel…" onClick={() => { setUi({ renameChannel: menu.ch }); setMenu(null); }} />
+          <MenuItem icon="eyeOff" label="Hide channel" onClick={() => { void hideChannel(menu.ch); setMenu(null); }} />
+          {menu.ch.group_title && (
+            <MenuItem icon="eyeOff" label={`Hide group “${menu.ch.group_title.slice(0, 24)}${menu.ch.group_title.length > 24 ? "…" : ""}”`} onClick={() => { void hideGroup(menu.ch.playlist_id, menu.ch.group_title!); setMenu(null); }} />
+          )}
+          {menu.p && menu.p.start > now && (() => {
+            const p = menu.p!;
+            const existing = reminderFor(menu.ch.id, p.start);
+            return (
+              <MenuItem
+                icon="bell"
+                label={existing ? "Remove reminder" : `Remind me (${fmtTime(p.start)})`}
+                onClick={() => {
+                  if (existing) {
+                    void ipc.deleteReminder(existing.id).catch(() => {});
+                  } else {
+                    void ipc.addReminder(menu.ch.id, p.start, p.stop, p.title).catch(() => {});
+                  }
+                  setMenu(null);
+                }}
+              />
+            );
+          })()}
           {menu.p && (
             <MenuItem
               icon="record"

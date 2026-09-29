@@ -27,7 +27,13 @@ pub enum DvrEvent {
     RecordingStopped { id: i64, status: String, bytes: u64, error: Option<String> },
     DownloadProgress { id: i64, bytes_done: u64, bytes_total: Option<u64> },
     DownloadDone { id: i64, status: String, error: Option<String> },
+    ReminderFired { id: i64, channel_id: i64, channel_name: String, title: String, start: i64 },
 }
+
+/// How far before the programme start a reminder fires, and how far past start it may still fire
+/// (beyond that — e.g. the app was closed — it is dropped silently by `take_due_reminders`).
+pub const REMINDER_LEAD_S: i64 = 60;
+pub const REMINDER_GRACE_S: i64 = 300;
 
 enum JobKind {
     /// mpv `stream-record` on the live engine (same connection as playback).
@@ -283,6 +289,32 @@ pub fn tick(app: &AppHandle) {
                 tracing::warn!(id = rec.id, error = %redact(&e), "could not start scheduled recording");
                 let _ = state.db.set_recording_status(rec.id, "failed", None, Some(&e));
             }
+        }
+    }
+    // Programme reminders: toast in-app + system notification, marked fired atomically.
+    if let Ok(due) = state.db.take_due_reminders(now, REMINDER_LEAD_S, REMINDER_GRACE_S) {
+        for r in due {
+            let starts_in_min = ((r.start - now).max(0) + 59) / 60;
+            let body = if starts_in_min > 0 {
+                format!("Starts in {starts_in_min} min on {}", r.channel_name)
+            } else {
+                format!("Now on {}", r.channel_name)
+            };
+            {
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app.notification().builder().title(&r.title).body(&body).show();
+            }
+            tracing::info!(id = r.id, title = r.title, "reminder fired");
+            let _ = app.emit(
+                EV_DVR,
+                DvrEvent::ReminderFired {
+                    id: r.id,
+                    channel_id: r.channel_id,
+                    channel_name: r.channel_name,
+                    title: r.title,
+                    start: r.start,
+                },
+            );
         }
     }
     let dvr_state = dvr(app);

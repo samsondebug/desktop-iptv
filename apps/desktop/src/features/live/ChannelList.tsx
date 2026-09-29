@@ -21,10 +21,26 @@ export default function ChannelList() {
   const current = useApp((s) => s.currentChannel);
   const favoriteIds = useApp((s) => s.favoriteIds);
   const toggleFavorite = useApp((s) => s.toggleFavorite);
+  const hideChannel = useApp((s) => s.hideChannel);
+  const hideGroup = useApp((s) => s.hideGroup);
   const selectedIndex = useApp((s) => s.ui.selectedIndex);
   const setUi = useApp((s) => s.setUi);
   const parentRef = useRef<HTMLDivElement>(null);
   const [fps, setFps] = useState<number | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; ch: ChannelRecord } | null>(null);
+
+  // Close the context menu on any click elsewhere or Escape.
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
 
   const virtualizer = useVirtualizer({
     count: src.count,
@@ -143,6 +159,7 @@ export default function ChannelList() {
                       void play(ch);
                     }}
                     onFav={() => void toggleFavorite(ch)}
+                    onMenu={(x, y) => setMenu({ x, y, ch })}
                   />
                 ) : (
                   <div className="row" style={{ color: "var(--text-faint)" }}>
@@ -161,6 +178,31 @@ export default function ChannelList() {
           </div>
         )}
       </div>
+
+      {menu && (
+        <div className="fixed z-50 panel rounded-md py-1" style={{ left: menu.x, top: menu.y, minWidth: 210 }} onMouseDown={(e) => e.stopPropagation()}>
+          <div className="px-3 py-1 truncate" style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
+            {menu.ch.name}
+          </div>
+          <MenuRow icon="play" label="Play" onClick={() => { void play(menu.ch); setMenu(null); }} />
+          <MenuRow icon={favoriteIds.has(menu.ch.id) ? "starFilled" : "star"} label={favoriteIds.has(menu.ch.id) ? "Remove favorite" : "Add favorite"} onClick={() => { void toggleFavorite(menu.ch); setMenu(null); }} />
+          <MenuRow icon="edit" label="Rename channel…" onClick={() => { setUi({ renameChannel: menu.ch }); setMenu(null); }} />
+          <MenuRow icon="eyeOff" label="Hide channel" onClick={() => { void hideChannel(menu.ch); setMenu(null); }} />
+          {menu.ch.group_title && (
+            <MenuRow icon="eyeOff" label={`Hide group “${menu.ch.group_title.slice(0, 24)}${menu.ch.group_title.length > 24 ? "…" : ""}”`} onClick={() => { void hideGroup(menu.ch.playlist_id, menu.ch.group_title!); setMenu(null); }} />
+          )}
+          <MenuRow icon="record" label="Record now…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MenuRow({ icon, label, onClick }: { icon: Parameters<typeof Icon>[0]["name"]; label: string; onClick: () => void }) {
+  return (
+    <div className="px-3 py-1.5 cursor-default flex items-center gap-2" style={{ fontSize: 12.5 }} onClick={onClick} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-elev-2)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+      <Icon name={icon} size={14} style={{ color: "var(--text-faint)" }} />
+      {label}
     </div>
   );
 }
@@ -174,6 +216,7 @@ function Row({
   showGroup,
   onPlay,
   onFav,
+  onMenu,
 }: {
   ch: ChannelRecord;
   index: number;
@@ -183,10 +226,19 @@ function Row({
   showGroup: boolean;
   onPlay: () => void;
   onFav: () => void;
+  onMenu: (x: number, y: number) => void;
 }) {
   const [logoOk, setLogoOk] = useState(!!ch.logo);
   return (
-    <div className={"row" + (selected ? " selected" : "") + (active ? " active" : "")} onClick={onPlay} onDoubleClick={onPlay}>
+    <div
+      className={"row" + (selected ? " selected" : "") + (active ? " active" : "")}
+      onClick={onPlay}
+      onDoubleClick={onPlay}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onMenu(e.clientX, e.clientY);
+      }}
+    >
       <span className="idx">{index + 1}</span>
       {logoOk && ch.logo ? (
         <img className="logo" src={ch.logo} loading="lazy" alt="" onError={() => setLogoOk(false)} draggable={false} />

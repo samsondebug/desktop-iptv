@@ -7,10 +7,12 @@
 //! * Inserts are chunked, max 5,000 rows per transaction.
 
 pub mod channels;
+pub mod curation;
 pub mod epg;
 pub mod normalize;
 pub mod progress;
 pub mod recordings;
+pub mod reminders;
 pub mod search;
 pub mod settings;
 pub mod vod;
@@ -41,6 +43,8 @@ pub type Result<T> = std::result::Result<T, DbError>;
 pub const MIGRATIONS: &[(&str, &str)] = &[
     ("0001_initial", include_str!("../../../migrations/0001_initial.sql")),
     ("0002_epg_vod_recording", include_str!("../../../migrations/0002_epg_vod_recording.sql")),
+    ("0003_reminders", include_str!("../../../migrations/0003_reminders.sql")),
+    ("0004_curation", include_str!("../../../migrations/0004_curation.sql")),
 ];
 
 pub const MAX_ROWS_PER_TX: usize = 5_000;

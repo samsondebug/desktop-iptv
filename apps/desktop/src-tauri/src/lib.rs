@@ -159,6 +159,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // Self-updater: signed `latest.json` on GitHub Releases (see docs/RELEASING.md). Desktop
             // only; the check itself runs from the webview so the UI owns the prompt and progress.
@@ -266,6 +267,10 @@ pub fn run() {
             commands::get_favorite_ids,
             commands::set_favorite,
             commands::get_recents,
+            commands::rename_channel,
+            commands::set_channel_hidden,
+            commands::set_group_hidden,
+            commands::curation_state,
             // playback
             commands::get_playback_state,
             commands::play_channel,
@@ -298,6 +303,9 @@ pub fn run() {
             commands::add_epg_source,
             commands::delete_epg_source,
             commands::refresh_epg,
+            commands::add_reminder,
+            commands::delete_reminder,
+            commands::list_reminders,
             // vod
             commands::list_vod,
             commands::count_vod,

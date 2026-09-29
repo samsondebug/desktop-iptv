@@ -42,10 +42,10 @@ pub struct PlaylistInsert {
     pub ua: Option<String>,
 }
 
-const CHANNEL_COLS: &str =
-    r#"id, playlist_id, source_id, name, normalized_name, "group", logo, stream_url, tvg_id, catchup_days"#;
+/// The `name` column honors a curation rename (`channel_overrides.custom_name`) when one exists.
+const CHANNEL_COLS: &str = r#"id, playlist_id, source_id, COALESCE((SELECT o.custom_name FROM channel_overrides o WHERE o.channel_id = channels.id), name), normalized_name, "group", logo, stream_url, tvg_id, catchup_days"#;
 /// Same columns qualified with the `ch` alias for joins.
-const CHANNEL_COLS_CH: &str = r#"ch.id, ch.playlist_id, ch.source_id, ch.name, ch.normalized_name, ch."group", ch.logo, ch.stream_url, ch.tvg_id, ch.catchup_days"#;
+const CHANNEL_COLS_CH: &str = r#"ch.id, ch.playlist_id, ch.source_id, COALESCE((SELECT o.custom_name FROM channel_overrides o WHERE o.channel_id = ch.id), ch.name), ch.normalized_name, ch."group", ch.logo, ch.stream_url, ch.tvg_id, ch.catchup_days"#;
 
 fn row_to_channel(r: &rusqlite::Row<'_>) -> rusqlite::Result<ChannelRecord> {
     Ok(ChannelRecord {
@@ -234,7 +234,7 @@ impl Db {
     }
 
     pub fn channel_count(&self, playlist_id: i64, group_title: Option<&str>) -> Result<i64> {
-        let hidden = self.hidden_clause(&["name", "\"group\""]);
+        let hidden = self.hidden_clause(&["name", "\"group\""]) + &crate::curation::curation_clause("channels.");
         self.with_read(|c| {
             let n: i64 = match group_title {
                 Some(g) => c.query_row(
@@ -262,7 +262,7 @@ impl Db {
     ) -> Result<Vec<ChannelRecord>> {
         let limit = limit.clamp(1, 2_000) as i64;
         let offset = offset as i64;
-        let hidden = self.hidden_clause(&["name", "\"group\""]);
+        let hidden = self.hidden_clause(&["name", "\"group\""]) + &crate::curation::curation_clause("channels.");
         self.with_read(|c| {
             let rows = match group_title {
                 Some(g) => {
@@ -305,7 +305,7 @@ impl Db {
     }
 
     pub fn list_groups(&self, playlist_id: i64) -> Result<Vec<GroupSummary>> {
-        let hidden = self.hidden_clause(&["name", "\"group\""]);
+        let hidden = self.hidden_clause(&["name", "\"group\""]) + &crate::curation::curation_clause("channels.");
         self.with_read(|c| {
             let mut st = c.prepare_cached(&format!(
                 r#"SELECT COALESCE("group", ''), COUNT(*) FROM channels WHERE playlist_id = ?1{hidden}
@@ -339,7 +339,7 @@ impl Db {
 
     pub fn favorite_channels(&self) -> Result<Vec<ChannelRecord>> {
         self.with_read(|c| {
-            let hidden = self.hidden_clause(&["name", "\"group\""]);
+            let hidden = self.hidden_clause(&["name", "\"group\""]) + &crate::curation::curation_clause("channels.");
             let mut st = c.prepare_cached(&format!(
                 "SELECT {CHANNEL_COLS} FROM channels WHERE id IN
                  (SELECT item_id FROM favorites WHERE user_scope = 'default' AND item_type = 'channel'){hidden} ORDER BY id"
@@ -377,7 +377,7 @@ impl Db {
 
     pub fn recent_channels(&self, limit: usize) -> Result<Vec<ChannelRecord>> {
         self.with_read(|c| {
-            let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]);
+            let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]) + &crate::curation::curation_clause("ch.");
             let mut st = c.prepare_cached(&format!(
                 "SELECT {CHANNEL_COLS_CH} FROM channels ch JOIN recents r ON r.channel_id = ch.id WHERE 1=1{hidden} ORDER BY r.viewed_at DESC LIMIT ?1"
             ))?;

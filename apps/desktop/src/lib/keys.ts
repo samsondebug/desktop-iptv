@@ -2,7 +2,9 @@
  * Global keyboard shortcuts (CLAUDE.md §8):
  *   /  search     j/k or ↑/↓ rows      Enter play      f fullscreen     m mute
  *   space pause   p profile            ←/→ EPG window (live) or seek ±10 s (VOD)
- *   Shift+S settings   Shift+D diagnostics   1/2/3 tabs   Esc close/exit
+ *   Shift+S settings   Shift+D diagnostics   1/2/3 tabs (Movies/Series)   Esc close/exit
+ *   Digits on the Live tab type a channel number (TiviMate-style zap): Enter or a short
+ *   pause plays that row of the current list; Backspace edits, Esc cancels.
  * List navigation is delegated to the mounted list via DOM events so the list owns its data.
  */
 import { useEffect } from "react";
@@ -11,6 +13,24 @@ import { useApp } from "./store";
 export const LIST_MOVE = "diptv:list-move";
 export const LIST_ENTER = "diptv:list-enter";
 export const EPG_SHIFT = "diptv:epg-shift";
+export const ZAP_COMMIT = "diptv:zap";
+
+/** How long after the last digit a zap commits on its own. */
+const ZAP_TIMEOUT_MS = 1400;
+let zapTimer: number | undefined;
+
+function commitZap() {
+  window.clearTimeout(zapTimer);
+  const s = useApp.getState();
+  const n = parseInt(s.ui.zapDigits, 10);
+  s.setUi({ zapDigits: "" });
+  if (Number.isFinite(n) && n > 0) window.dispatchEvent(new CustomEvent(ZAP_COMMIT, { detail: n }));
+}
+
+function armZapTimer() {
+  window.clearTimeout(zapTimer);
+  zapTimer = window.setTimeout(commitZap, ZAP_TIMEOUT_MS);
+}
 
 export function useKeyboard() {
   useEffect(() => {
@@ -24,6 +44,10 @@ export function useKeyboard() {
           (target as HTMLElement).blur();
           if ((target as HTMLInputElement).id === "channel-search") s.setSearch("");
           return;
+        }
+        if (s.ui.zapDigits) {
+          window.clearTimeout(zapTimer);
+          return s.setUi({ zapDigits: "" });
         }
         if (s.ui.recordDialog) return s.setUi({ recordDialog: null });
         if (s.rail.kind === "library") return s.selectRail({ kind: "all" });
@@ -56,6 +80,28 @@ export function useKeyboard() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Modal open: only Esc (handled above) and Enter for the resume prompt.
       if (s.ui.resumePrompt || s.ui.unlockOpen || s.ui.epgEditChannel || s.ui.seriesOpen != null || s.ui.recordDialog) return;
+
+      // Channel-number zap (Live tab): digits build a number, Enter or a pause commits it.
+      if (s.tab === "live" && /^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        s.setUi({ zapDigits: (s.ui.zapDigits + e.key).slice(0, 4) });
+        armZapTimer();
+        return;
+      }
+      if (s.ui.zapDigits) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          return commitZap();
+        }
+        if (e.key === "Backspace") {
+          e.preventDefault();
+          const digits = s.ui.zapDigits.slice(0, -1);
+          s.setUi({ zapDigits: digits });
+          window.clearTimeout(zapTimer);
+          if (digits) armZapTimer();
+          return;
+        }
+      }
 
       // Letters are matched case-insensitively so Shift/CapsLock combos still work.
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;

@@ -37,6 +37,7 @@ sha2.workspace = true
 hex.workspace = true
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
 
 [features]
 # Tauri's dev/prod switch for the custom protocol; leave as is.

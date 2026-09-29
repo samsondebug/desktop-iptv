@@ -246,3 +246,32 @@ pub fn set_favorite(state: State<'_, AppState>, channel_id: i64, on: bool) -> Cm
 pub fn get_recents(state: State<'_, AppState>) -> CmdResult<Vec<ChannelRecord>> {
     state.db.recent_channels(30).map_err(err)
 }
+
+// ---------- curation (rename / hide) ----------
+
+/// Rename a channel's display name (None/empty clears back to the source name).
+#[tauri::command]
+pub fn rename_channel(state: State<'_, AppState>, channel_id: i64, name: Option<String>) -> CmdResult<()> {
+    state.db.set_channel_name(channel_id, name.as_deref()).map_err(err)
+}
+
+#[tauri::command]
+pub fn set_channel_hidden(state: State<'_, AppState>, channel_id: i64, hidden: bool) -> CmdResult<()> {
+    state.db.set_channel_hidden(channel_id, hidden).map_err(err)
+}
+
+#[tauri::command]
+pub fn set_group_hidden(
+    state: State<'_, AppState>,
+    playlist_id: i64,
+    group_title: String,
+    hidden: bool,
+) -> CmdResult<()> {
+    state.db.set_group_hidden(playlist_id, &group_title, hidden).map_err(err)
+}
+
+/// Everything currently hidden or renamed (Settings → Playlists → Hidden & renamed).
+#[tauri::command]
+pub fn curation_state(state: State<'_, AppState>) -> CmdResult<app_db::curation::CurationState> {
+    state.db.curation_state().map_err(err)
+}

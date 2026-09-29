@@ -27,6 +27,31 @@ pub struct VodInsert {
     pub added: Option<i64>,
 }
 
+/// Filter chips over the VOD grid. Values are typed numerics interpolated into SQL directly
+/// (no string data), so no injection surface.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct VodFilter {
+    pub year_from: Option<i32>,
+    pub year_to: Option<i32>,
+    pub min_rating: Option<f64>,
+}
+
+impl VodFilter {
+    fn clause(&self) -> String {
+        let mut s = String::new();
+        if let Some(y) = self.year_from {
+            s.push_str(&format!(" AND year >= {y}"));
+        }
+        if let Some(y) = self.year_to {
+            s.push_str(&format!(" AND year <= {y}"));
+        }
+        if let Some(r) = self.min_rating {
+            s.push_str(&format!(" AND rating >= {r}"));
+        }
+        s
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EpisodeInsert {
     pub source_id: Option<String>,
@@ -186,7 +211,17 @@ impl Db {
     }
 
     pub fn vod_count(&self, playlist_id: i64, kind: &str, category: Option<&str>) -> Result<i64> {
-        let hidden = self.hidden_clause(&["title", "category"]);
+        self.vod_count_filtered(playlist_id, kind, category, &VodFilter::default())
+    }
+
+    pub fn vod_count_filtered(
+        &self,
+        playlist_id: i64,
+        kind: &str,
+        category: Option<&str>,
+        filter: &VodFilter,
+    ) -> Result<i64> {
+        let hidden = self.hidden_clause(&["title", "category"]) + &filter.clause();
         self.with_read(|c| {
             Ok(match category {
                 Some(g) => c.query_row(
@@ -215,6 +250,21 @@ impl Db {
         limit: usize,
         offset: usize,
     ) -> Result<Vec<VodRecord>> {
+        self.list_vod_filtered(playlist_id, kind, category, sort, &VodFilter::default(), limit, offset)
+    }
+
+    /// [`Db::list_vod`] with the filter chips applied (year window / minimum rating).
+    #[allow(clippy::too_many_arguments)]
+    pub fn list_vod_filtered(
+        &self,
+        playlist_id: i64,
+        kind: &str,
+        category: Option<&str>,
+        sort: &str,
+        filter: &VodFilter,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<VodRecord>> {
         let order = match sort {
             "title" => "normalized_title ASC, id",
             "year" => "year DESC, id",
@@ -222,7 +272,7 @@ impl Db {
             _ => "COALESCE(added, 0) DESC, id DESC",
         };
         let limit = limit.clamp(1, 1_000) as i64;
-        let hidden = self.hidden_clause(&["title", "category"]);
+        let hidden = self.hidden_clause(&["title", "category"]) + &filter.clause();
         self.with_read(|c| {
             let rows = match category {
                 Some(g) => {

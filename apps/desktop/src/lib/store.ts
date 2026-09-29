@@ -118,7 +118,13 @@ interface AppStore {
     epgEditChannel: ChannelRecord | null;
     vodSort: "added" | "title" | "year" | "rating";
     vodCategory: string | null;
+    /** VOD filter chips (decade / rating). Empty object = everything. */
+    vodFilter: import("./ipc").VodFilter;
     recordDialog: { channel: ChannelRecord; programme?: { start: number; stop: number; title: string } } | null;
+    /** Digits typed for channel-number zap ("" when idle); rendered by ZapOverlay. */
+    zapDigits: string;
+    /** Channel being renamed in the rename modal. */
+    renameChannel: ChannelRecord | null;
   };
   setMini: (on: boolean) => Promise<void>;
   openPane: (channelId: number | null) => Promise<void>;
@@ -133,6 +139,9 @@ interface AppStore {
   setSearch: (q: string) => void;
   refreshSidebarLists: () => Promise<void>;
   toggleFavorite: (ch: ChannelRecord) => Promise<void>;
+  renameChannel: (ch: ChannelRecord, name: string | null) => Promise<void>;
+  hideChannel: (ch: ChannelRecord) => Promise<void>;
+  hideGroup: (playlistId: number, groupTitle: string) => Promise<void>;
 
   play: (ch: ChannelRecord) => Promise<void>;
   playVod: (v: VodRecord, fromStart?: boolean) => Promise<void>;
@@ -212,7 +221,10 @@ export const useApp = create<AppStore>((set, get) => ({
     epgEditChannel: null,
     vodSort: "added",
     vodCategory: null,
+    vodFilter: {},
     recordDialog: null,
+    zapDigits: "",
+    renameChannel: null,
   },
 
   init: async () => {
@@ -294,6 +306,22 @@ export const useApp = create<AppStore>((set, get) => ({
           if (ev.status === "completed") get().pushToast({ level: "info", title: "Download finished" });
           else if (ev.status === "failed") get().pushToast({ level: "error", title: "Download failed", body: ev.error ?? undefined });
           break;
+        case "reminder_fired": {
+          const startsInMin = Math.max(0, Math.ceil((ev.start - Date.now() / 1000) / 60));
+          get().pushToast({
+            level: "info",
+            sticky: true,
+            title: `Reminder: ${ev.title}`,
+            body: startsInMin > 0 ? `Starts in ${startsInMin} min on ${ev.channel_name}` : `Now on ${ev.channel_name}`,
+            action: {
+              label: "Watch",
+              onClick: () => {
+                void ipc.getChannel(ev.channel_id).then((ch) => get().play(ch)).catch(() => {});
+              },
+            },
+          });
+          break;
+        }
       }
     });
 
@@ -418,6 +446,67 @@ export const useApp = create<AppStore>((set, get) => ({
     await ipc.setFavorite(ch.id, on);
     await get().refreshSidebarLists();
     if (get().rail.kind === "favorites") set((s) => ({ listVersion: s.listVersion + 1 }));
+  },
+
+  renameChannel: async (ch, name) => {
+    try {
+      await ipc.renameChannel(ch.id, name);
+      set((s) => ({ listVersion: s.listVersion + 1 }));
+      await get().refreshSidebarLists();
+    } catch (e) {
+      get().pushToast({ level: "error", title: "Rename failed", body: String(e) });
+    }
+  },
+
+  hideChannel: async (ch) => {
+    try {
+      await ipc.setChannelHidden(ch.id, true);
+      set((s) => ({ listVersion: s.listVersion + 1 }));
+      await get().refreshSidebarLists();
+      get().pushToast({
+        level: "info",
+        title: `Hidden: ${ch.name}`,
+        body: "Unhide any time in Settings → Playlists.",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void ipc.setChannelHidden(ch.id, false).then(() => set((s) => ({ listVersion: s.listVersion + 1 })));
+          },
+        },
+      });
+    } catch (e) {
+      get().pushToast({ level: "error", title: "Could not hide channel", body: String(e) });
+    }
+  },
+
+  hideGroup: async (playlistId, groupTitle) => {
+    try {
+      await ipc.setGroupHidden(playlistId, groupTitle, true);
+      const groups = await ipc.listGroups(playlistId);
+      set((s) => ({
+        groups,
+        listVersion: s.listVersion + 1,
+        // Leave a rail pointing at the now-hidden group.
+        rail: s.rail.kind === "group" && s.rail.title === groupTitle ? { kind: "all" } : s.rail,
+      }));
+      await get().refreshSidebarLists();
+      get().pushToast({
+        level: "info",
+        title: `Hidden group: ${groupTitle || "(no group)"}`,
+        body: "Unhide any time in Settings → Playlists.",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void ipc.setGroupHidden(playlistId, groupTitle, false).then(async () => {
+              set((s) => ({ listVersion: s.listVersion + 1 }));
+              set({ groups: await ipc.listGroups(playlistId) });
+            });
+          },
+        },
+      });
+    } catch (e) {
+      get().pushToast({ level: "error", title: "Could not hide group", body: String(e) });
+    }
   },
 
   play: async (ch) => {

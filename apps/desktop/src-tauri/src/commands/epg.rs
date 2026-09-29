@@ -148,3 +148,31 @@ pub fn delete_epg_source(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
 pub fn refresh_epg(app: AppHandle, state: State<'_, AppState>, playlist_id: i64) -> CmdResult<bool> {
     Ok(spawn_sync(app, state.db.clone(), playlist_id, SyncScope::EpgOnly))
 }
+
+// ---------- programme reminders ----------
+
+/// Set (or update) a reminder for a programme. Fires ~1 min before start via the DVR scheduler.
+#[tauri::command]
+pub fn add_reminder(
+    state: State<'_, AppState>,
+    channel_id: i64,
+    start: i64,
+    stop: i64,
+    title: String,
+) -> CmdResult<i64> {
+    if start + crate::dvr::REMINDER_GRACE_S <= super::now_unix() {
+        return Err("That programme has already started".into());
+    }
+    state.db.add_reminder(channel_id, start, stop, &title).map_err(err)
+}
+
+#[tauri::command]
+pub fn delete_reminder(state: State<'_, AppState>, id: i64) -> CmdResult<()> {
+    state.db.delete_reminder(id).map_err(err)
+}
+
+/// Upcoming (unfired) reminders, soonest first.
+#[tauri::command]
+pub fn list_reminders(state: State<'_, AppState>) -> CmdResult<Vec<app_db::reminders::ReminderRecord>> {
+    state.db.list_reminders(super::now_unix()).map_err(err)
+}

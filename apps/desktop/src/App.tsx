@@ -8,9 +8,10 @@ import { scheduleBackgroundChecks } from "./lib/updater";
 import Rail from "./components/Rail";
 import LegalGate from "./components/LegalGate";
 import Toasts from "./components/Toasts";
-import { EpgEditModal, ResumePromptModal, UnlockModal } from "./components/Modals";
+import { EpgEditModal, RenameChannelModal, ResumePromptModal, UnlockModal } from "./components/Modals";
 import PlayerPane from "./features/player/PlayerPane";
 import ChannelList from "./features/live/ChannelList";
+import ZapOverlay from "./features/live/ZapOverlay";
 import NowPanel from "./features/live/NowPanel";
 import EpgGrid from "./features/epg/EpgGrid";
 import VodBrowser from "./features/vod/VodBrowser";
@@ -154,6 +155,8 @@ export default function App() {
       {ui.unlockOpen && <UnlockModal />}
       {ui.epgEditChannel && <EpgEditModal />}
       {ui.recordDialog && <RecordDialog />}
+      {ui.renameChannel && <RenameChannelModal />}
+      {tab === "live" && !empty && <ZapOverlay />}
       <Toasts />
     </div>
   );

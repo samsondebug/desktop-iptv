@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ipc } from "../../lib/ipc";
 import { fmtDuration, useApp } from "../../lib/store";
 import Hud from "./Hud";
+import TrackMenu from "./TrackMenu";
 import Icon from "../../components/Icon";
 
 const CHROME_HIDE_MS = 2600;
@@ -235,6 +236,7 @@ export default function PlayerPane() {
                 </button>
               </div>
             )}
+            {!mini && !stub && <TrackMenu isVod={isVod} />}
             {currentChannel && !mini && (
               <button className="btn ghost icon" style={{ color: isFav ? "var(--warn)" : "white" }} onClick={() => void toggleFavorite(currentChannel)} title={isFav ? "Remove from favorites" : "Add to favorites"} aria-label="Favorite">
                 <Icon name={isFav ? "starFilled" : "star"} size={17} />

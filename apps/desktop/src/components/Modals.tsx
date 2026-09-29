@@ -176,3 +176,45 @@ export function EpgEditModal() {
     </div>
   );
 }
+
+export function RenameChannelModal() {
+  const ch = useApp((s) => s.ui.renameChannel)!;
+  const setUi = useApp((s) => s.setUi);
+  const renameChannel = useApp((s) => s.renameChannel);
+  const [name, setName] = useState(ch.name);
+  const submit = async () => {
+    setUi({ renameChannel: null });
+    const trimmed = name.trim();
+    if (!trimmed) await renameChannel(ch, null); // empty restores the source name
+    else if (trimmed !== ch.name) await renameChannel(ch, trimmed);
+  };
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && setUi({ renameChannel: null })}>
+      <div className="modal" style={{ width: 420 }}>
+        <div className="text-[15px] font-semibold">Rename channel</div>
+        <div className="mt-1" style={{ color: "var(--text-dim)", fontSize: 12.5 }}>
+          Only how it looks in this app changes — the source keeps its own name. Leave empty to restore the original.
+        </div>
+        <input
+          className="input mt-3 w-full"
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void submit();
+            e.stopPropagation();
+          }}
+          spellCheck={false}
+        />
+        <div className="mt-4 flex justify-end gap-2">
+          <button className="btn" onClick={() => setUi({ renameChannel: null })}>
+            Cancel
+          </button>
+          <button className="btn primary" onClick={() => void submit()}>
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

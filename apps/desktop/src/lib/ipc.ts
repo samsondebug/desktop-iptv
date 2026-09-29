@@ -335,11 +335,17 @@ export interface ContinueItem {
   episode: EpisodeRecord | null;
   series: VodRecord | null;
 }
+export interface VodFilter {
+  year_from?: number | null;
+  year_to?: number | null;
+  min_rating?: number | null;
+}
 export interface ListVodRequest {
   playlist_id: number;
   kind: VodKind;
   category: string | null;
   sort: "added" | "title" | "year" | "rating" | null;
+  filter?: VodFilter | null;
   limit: number;
   offset: number;
 }
@@ -384,7 +390,21 @@ export type DvrEvent =
   | { type: "recording_progress"; id: number; bytes: number }
   | { type: "recording_stopped"; id: number; status: string; bytes: number; error: string | null }
   | { type: "download_progress"; id: number; bytes_done: number; bytes_total: number | null }
-  | { type: "download_done"; id: number; status: string; error: string | null };
+  | { type: "download_done"; id: number; status: string; error: string | null }
+  | { type: "reminder_fired"; id: number; channel_id: number; channel_name: string; title: string; start: number };
+export interface CurationState {
+  hidden_channels: { channel_id: number; name: string; playlist_id: number }[];
+  hidden_groups: { playlist_id: number; group_title: string; channel_count: number }[];
+  renamed_count: number;
+}
+export interface ReminderRecord {
+  id: number;
+  channel_id: number;
+  channel_name: string;
+  start: number;
+  stop: number;
+  title: string;
+}
 export interface PaneInfo {
   label: string;
   playing: boolean;
@@ -463,6 +483,10 @@ export const ipc = {
   countChannels: (playlistId: number, groupTitle: string | null) => invoke<number>("count_channels", { playlistId, groupTitle }),
   searchChannels: (req: FtsQueryRequest) => invoke<ChannelRecord[]>("search_channels", { req }),
   getChannel: (channelId: number) => invoke<ChannelRecord>("get_channel", { channelId }),
+  renameChannel: (channelId: number, name: string | null) => invoke<void>("rename_channel", { channelId, name }),
+  setChannelHidden: (channelId: number, hidden: boolean) => invoke<void>("set_channel_hidden", { channelId, hidden }),
+  setGroupHidden: (playlistId: number, groupTitle: string, hidden: boolean) => invoke<void>("set_group_hidden", { playlistId, groupTitle, hidden }),
+  curationState: () => invoke<CurationState>("curation_state"),
   getFavorites: () => invoke<ChannelRecord[]>("get_favorites"),
   getFavoriteIds: () => invoke<number[]>("get_favorite_ids"),
   setFavorite: (channelId: number, on: boolean) => invoke<void>("set_favorite", { channelId, on }),
@@ -498,14 +522,17 @@ export const ipc = {
   setEpgOverride: (channelId: number, tvgId: string | null) => invoke<void>("set_epg_override", { channelId, tvgId }),
   getEpgOverride: (channelId: number) => invoke<string | null>("get_epg_override", { channelId }),
   epgSearchIds: (playlistId: number, q: string) => invoke<string[]>("epg_search_ids", { playlistId, q }),
-  listEpgSources: (playlistId: number) => invoke<EpgSource[]>("list_epg_sources", { playlistId }),
+  addReminder: (channelId: number, start: number, stop: number, title: string) => invoke<number>("add_reminder", { channelId, start, stop, title }),
+  deleteReminder: (id: number) => invoke<void>("delete_reminder", { id }),
+  listReminders: () => invoke<ReminderRecord[]>("list_reminders"),
+  listEpgSources:(playlistId: number) => invoke<EpgSource[]>("list_epg_sources", { playlistId }),
   addEpgSource: (playlistId: number, url: string) => invoke<number>("add_epg_source", { playlistId, url }),
   deleteEpgSource: (id: number) => invoke<void>("delete_epg_source", { id }),
   refreshEpg: (playlistId: number) => invoke<boolean>("refresh_epg", { playlistId }),
 
   // vod
   listVod: (req: ListVodRequest) => invoke<VodRecord[]>("list_vod", { req }),
-  countVod: (playlistId: number, kind: VodKind, category: string | null) => invoke<number>("count_vod", { playlistId, kind, category }),
+  countVod: (playlistId: number, kind: VodKind, category: string | null, filter?: VodFilter | null) => invoke<number>("count_vod", { playlistId, kind, category, filter: filter ?? null }),
   vodGroups: (playlistId: number, kind: VodKind) => invoke<VodGroup[]>("vod_groups", { playlistId, kind }),
   searchVod: (playlistId: number, query: string, kind: VodKind | null, limit: number) =>
     invoke<VodRecord[]>("search_vod", { playlistId, query, kind, limit }),

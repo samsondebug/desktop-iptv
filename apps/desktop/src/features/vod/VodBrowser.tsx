@@ -13,12 +13,21 @@ import Icon from "../../components/Icon";
 const CARD_W = 150;
 const CARD_H = 290;
 
+/** Decade filter chips. `to` omitted = open-ended (Older = everything before 2000). */
+const DECADES: { label: string; from: number; to?: number }[] = [
+  { label: "2020s", from: 2020 },
+  { label: "2010s", from: 2010, to: 2019 },
+  { label: "2000s", from: 2000, to: 2009 },
+  { label: "Older", from: 1900, to: 1999 },
+];
+
 export default function VodBrowser({ kind }: { kind: VodKind }) {
   const src = useVodSource(kind);
   const search = useApp((s) => s.search);
   const setSearch = useApp((s) => s.setSearch);
   const category = useApp((s) => s.ui.vodCategory);
   const sort = useApp((s) => s.ui.vodSort);
+  const filter = useApp((s) => s.ui.vodFilter);
   const setUi = useApp((s) => s.setUi);
   const playVod = useApp((s) => s.playVod);
   const selectedIndex = useApp((s) => s.ui.selectedIndex);
@@ -124,6 +133,44 @@ export default function VodBrowser({ kind }: { kind: VodKind }) {
           autoComplete="off"
         />
       </div>
+
+      {!showContinue && !search.trim() && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 border-b shrink-0 flex-wrap" style={{ borderColor: "var(--border)" }}>
+          {DECADES.map((d) => {
+            const on = filter.year_from === d.from && (filter.year_to ?? null) === (d.to ?? null);
+            return (
+              <button
+                key={d.label}
+                className={"btn ghost" + (on ? " on" : "")}
+                style={{ fontSize: 11.5, padding: "2px 10px", color: on ? "var(--accent)" : "var(--text-dim)", border: "1px solid var(--border)", borderRadius: 999 }}
+                onClick={() => setUi({ vodFilter: on ? { ...filter, year_from: null, year_to: null } : { ...filter, year_from: d.from, year_to: d.to ?? null } })}
+              >
+                {d.label}
+              </button>
+            );
+          })}
+          <span style={{ width: 10 }} />
+          {[7, 8].map((r) => {
+            const on = filter.min_rating === r;
+            return (
+              <button
+                key={r}
+                className={"btn ghost" + (on ? " on" : "")}
+                style={{ fontSize: 11.5, padding: "2px 10px", color: on ? "var(--accent)" : "var(--text-dim)", border: "1px solid var(--border)", borderRadius: 999 }}
+                onClick={() => setUi({ vodFilter: { ...filter, min_rating: on ? null : r } })}
+                title={`Rating ${r} or higher`}
+              >
+                ★ {r}+
+              </button>
+            );
+          })}
+          {(filter.year_from != null || filter.min_rating != null) && (
+            <button className="btn ghost" style={{ fontSize: 11.5, padding: "2px 8px", color: "var(--text-faint)" }} onClick={() => setUi({ vodFilter: {} })}>
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {menu && (
         <div className="fixed z-50 panel rounded-md py-1" style={{ left: menu.x, top: menu.y, minWidth: 200 }} onClick={(e) => e.stopPropagation()}>

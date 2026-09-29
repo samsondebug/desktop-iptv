@@ -37,10 +37,12 @@ impl Db {
             return Ok(Vec::new());
         };
         let limit = limit.clamp(1, 1_000) as i64;
-        let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]);
+        let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]) + &crate::curation::curation_clause("ch.");
         self.with_read(|c| {
             let mut st = c.prepare_cached(&format!(
-                r#"SELECT ch.id, ch.playlist_id, ch.source_id, ch.name, ch.normalized_name, ch."group", ch.logo,
+                r#"SELECT ch.id, ch.playlist_id, ch.source_id,
+                          COALESCE((SELECT o.custom_name FROM channel_overrides o WHERE o.channel_id = ch.id), ch.name),
+                          ch.normalized_name, ch."group", ch.logo,
                           ch.stream_url, ch.tvg_id, ch.catchup_days
                    FROM search_idx s
                    JOIN channels ch ON ch.id = s.item_id
@@ -72,7 +74,7 @@ impl Db {
         let Some(m) = build_match(query) else {
             return Ok(0);
         };
-        let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]);
+        let hidden = self.hidden_clause(&["ch.name", "ch.\"group\""]) + &crate::curation::curation_clause("ch.");
         self.with_read(|c| {
             Ok(c.query_row(
                 &format!("SELECT COUNT(*) FROM search_idx s JOIN channels ch ON ch.id = s.item_id WHERE search_idx MATCH ?1 AND s.content_type = 'channel' AND (?2 = 0 OR s.playlist_id = ?2){hidden}"),

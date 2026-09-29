@@ -1,6 +1,6 @@
-# Status — full 90-day plan implemented (v0.1.0 candidate)
+# Status — full 90-day plan implemented
 
-Last updated: 2026-09-27. Six commits, ~15.6k lines of Rust across 5 crates (90 tests, clippy
+Last updated: 2026-09-28 (v0.3.0). Six commits, ~15.6k lines of Rust across 5 crates (90 tests, clippy
 `-D warnings` clean, `cargo fmt` clean), ~5.4k lines of TypeScript/React (tsc + vite green),
 105 Tauri commands.
 
@@ -125,6 +125,23 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
   `MainBinaryName` registry value). `site/` is now a multi-page website (landing, download with
   Windows/macOS/Linux buttons, guides, FAQ, privacy) deployed to Vercel as sktv.app, with
   `api/download.js` serving `/download/<os>` short links; GitHub Pages keeps the static copy.
+* **v0.3.0 — competitive-gap tier 1** (from the IPTV player landscape review). New in this release:
+  * **Audio/subtitle track picker + VOD speed** (`TrackMenu.tsx` in the transport bar): reads mpv
+    `track-list`, selects `aid`/`sid`; subtitles still ship off (`sid=no`), turning one on is an
+    explicit per-session choice; 0.5×–2× speed for VOD.
+  * **Programme reminders** (migration `0003_reminders`): right-click a future programme → Remind
+    me; the DVR scheduler fires them ~60 s before start (300 s grace; missed ones die silently)
+    with an in-app toast (Watch button) + a system notification (`tauri-plugin-notification`).
+  * **Channel-number zap**: on the Live tab, typed digits build a number in a big overlay
+    (TiviMate-style); Enter or a 1.4 s pause plays that row of the current list; Backspace edits,
+    Esc cancels. Works in fullscreen (overlay is independent of the mounted list).
+  * **Curation — rename & hide** (migration `0004_curation`): per-channel rename (kept in
+    `channel_overrides`, so playlist refreshes never wipe it; FTS is re-indexed so search matches
+    the new name) and hide, per-group hide (`group_overrides`); right-click menus in both the
+    channel list and the EPG grid; undo toasts; Settings → Playlists → "Hidden & renamed" lists
+    everything with Unhide buttons. Applied via `curation_clause()` in every list/count/search.
+  * **VOD filter chips**: decade (2020s/2010s/2000s/Older) + rating (★7+/★8+) chips over the
+    poster grid; `VodFilter` is typed numerics only.
 
 ## Next
 

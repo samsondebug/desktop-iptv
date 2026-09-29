@@ -16,6 +16,7 @@ export function useVodSource(kind: VodKind): VodSource {
   const playlistId = useApp((s) => s.activePlaylistId);
   const category = useApp((s) => s.ui.vodCategory);
   const sort = useApp((s) => s.ui.vodSort);
+  const filter = useApp((s) => s.ui.vodFilter);
   const search = useApp((s) => s.search);
   const listVersion = useApp((s) => s.listVersion);
   const [count, setCount] = useState(0);
@@ -52,10 +53,10 @@ export function useVodSource(kind: VodKind): VodSource {
       return () => window.clearTimeout(t);
     }
     ipc
-      .countVod(playlistId, kind, category)
+      .countVod(playlistId, kind, category, filter)
       .then((n) => g === gen.current && setCount(n))
       .finally(() => g === gen.current && setLoading(false));
-  }, [playlistId, kind, category, sort, search, listVersion]);
+  }, [playlistId, kind, category, sort, filter, search, listVersion]);
 
   const loadPage = useCallback(
     (p: number) => {
@@ -63,7 +64,7 @@ export function useVodSource(kind: VodKind): VodSource {
       inflight.current.add(p);
       const g = gen.current;
       ipc
-        .listVod({ playlist_id: playlistId, kind, category, sort, limit: VOD_PAGE, offset: p * VOD_PAGE })
+        .listVod({ playlist_id: playlistId, kind, category, sort, filter, limit: VOD_PAGE, offset: p * VOD_PAGE })
         .then((rows) => {
           if (g !== gen.current) return;
           pages.current.set(p, rows);
@@ -71,7 +72,7 @@ export function useVodSource(kind: VodKind): VodSource {
         })
         .finally(() => inflight.current.delete(p));
     },
-    [playlistId, kind, category, sort],
+    [playlistId, kind, category, sort, filter],
   );
 
   const row = useCallback(

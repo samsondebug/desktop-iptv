@@ -4,7 +4,7 @@ use super::{err, require_feature, CmdResult};
 use crate::state::AppState;
 use crate::sync::{spawn_sync, SyncScope};
 use app_db::progress::ProgressRecord;
-use app_db::vod::{EpisodeRecord, VodGroup, VodRecord};
+use app_db::vod::{EpisodeRecord, VodFilter, VodGroup, VodRecord};
 use app_net::adapters::XtreamAdapter;
 use app_net::importer::NoopSink;
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,9 @@ pub struct ListVodRequest {
     pub category: Option<String>,
     /// "added" | "title" | "year" | "rating"
     pub sort: Option<String>,
+    /// Filter chips (year window / minimum rating); absent = everything.
+    #[serde(default)]
+    pub filter: Option<VodFilter>,
     pub limit: usize,
     pub offset: usize,
 }
@@ -27,11 +30,12 @@ pub struct ListVodRequest {
 pub fn list_vod(state: State<'_, AppState>, req: ListVodRequest) -> CmdResult<Vec<VodRecord>> {
     state
         .db
-        .list_vod(
+        .list_vod_filtered(
             req.playlist_id,
             &req.kind,
             req.category.as_deref(),
             req.sort.as_deref().unwrap_or("added"),
+            &req.filter.unwrap_or_default(),
             req.limit,
             req.offset,
         )
@@ -44,8 +48,9 @@ pub fn count_vod(
     playlist_id: i64,
     kind: String,
     category: Option<String>,
+    filter: Option<VodFilter>,
 ) -> CmdResult<i64> {
-    state.db.vod_count(playlist_id, &kind, category.as_deref()).map_err(err)
+    state.db.vod_count_filtered(playlist_id, &kind, category.as_deref(), &filter.unwrap_or_default()).map_err(err)
 }
 
 #[tauri::command]
