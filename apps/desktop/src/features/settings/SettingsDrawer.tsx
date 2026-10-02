@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { ipc, type ConfigPayload, type CurationState, type EpgSource, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
+import { ipc, type ConfigPayload, type CurationState, type EpgSource, type NameRule, type HwDecoding, type PlaylistMeta, type XtreamAccount } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
 import Icon from "../../components/Icon";
 import { checkForUpdates, installUpdate } from "../../lib/updater";
@@ -331,7 +331,100 @@ function PlaylistsTab({ draft, set }: { draft: ConfigPayload; set: <K extends ke
         );
       })}
       <CurationSection />
+      <NameRulesSection />
     </section>
+  );
+}
+
+/** Channel-name cleanup: regex find/replace run at import time (and on demand). */
+function NameRulesSection() {
+  const activePlaylistId = useApp((s) => s.activePlaylistId);
+  const pushToast = useApp((s) => s.pushToast);
+  const [rules, setRules] = useState<NameRule[] | null>(null);
+  const [preview, setPreview] = useState<{ before: string; after: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    ipc.getNameRules().then(setRules).catch(() => setRules([]));
+  }, []);
+  if (rules == null) return null;
+
+  const upd = (i: number, patch: Partial<NameRule>) => {
+    setRules(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    setPreview(null);
+  };
+  const doPreview = () => {
+    if (activePlaylistId == null) return;
+    void ipc
+      .previewNameRules(rules, activePlaylistId)
+      .then((p) => setPreview(p))
+      .catch((e) => pushToast({ level: "error", title: "Bad rule", body: String(e) }));
+  };
+  const save = (applyNow: boolean) => {
+    setBusy(true);
+    void ipc
+      .setNameRules(rules, applyNow)
+      .then((r) => {
+        pushToast({
+          level: "info",
+          title: applyNow ? `Rules saved — ${r.changed.toLocaleString()} channel names updated` : "Rules saved",
+          body: applyNow ? undefined : "They apply on the next playlist refresh (or use Apply now).",
+        });
+        useApp.setState((s) => ({ listVersion: s.listVersion + 1 }));
+      })
+      .catch((e) => pushToast({ level: "error", title: "Bad rule", body: String(e) }))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <div className="rounded-md p-3 mt-2" style={{ background: "var(--bg-elev-2)" }}>
+      <div className="font-semibold" style={{ fontSize: 12.5 }}>
+        Channel-name cleanup
+      </div>
+      <div style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
+        Regex find → replace, run top to bottom on every import. Example: pattern <code>^[A-Z]{"{2}"}\|\s*</code> with an empty
+        replacement strips “US| ”. Capture groups work (<code>$1</code>).
+      </div>
+      {rules.map((r, i) => (
+        <div key={i} className="flex items-center gap-2 mt-2">
+          <input type="checkbox" checked={r.enabled} onChange={(e) => upd(i, { enabled: e.target.checked })} title="Enabled" />
+          <input className="input flex-1" style={{ fontFamily: "var(--mono)", fontSize: 12 }} placeholder="pattern (regex)" value={r.pattern} onChange={(e) => upd(i, { pattern: e.target.value })} spellCheck={false} />
+          <span style={{ color: "var(--text-faint)" }}>→</span>
+          <input className="input flex-1" style={{ fontFamily: "var(--mono)", fontSize: 12 }} placeholder="replacement" value={r.replacement} onChange={(e) => upd(i, { replacement: e.target.value })} spellCheck={false} />
+          <button className="btn ghost" title="Remove rule" onClick={() => { setRules(rules.filter((_, j) => j !== i)); setPreview(null); }}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="mt-2 flex gap-2 flex-wrap">
+        <button className="btn" onClick={() => setRules([...rules, { pattern: "", replacement: "", enabled: true }])}>
+          Add rule
+        </button>
+        {rules.length > 0 && (
+          <>
+            <button className="btn" disabled={activePlaylistId == null} onClick={doPreview}>
+              Preview
+            </button>
+            <button className="btn" disabled={busy} onClick={() => save(false)}>
+              Save
+            </button>
+            <button className="btn primary" disabled={busy} onClick={() => save(true)}>
+              Save & apply now
+            </button>
+          </>
+        )}
+      </div>
+      {preview && (
+        <div className="mt-2" style={{ fontSize: 12, fontFamily: "var(--mono)" }}>
+          {preview.length === 0 && <div style={{ color: "var(--text-faint)" }}>No names would change in this playlist.</div>}
+          {preview.map((p, i) => (
+            <div key={i} className="truncate">
+              <span style={{ color: "var(--text-faint)" }}>{p.before}</span> → <span style={{ color: "var(--accent-2)" }}>{p.after}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

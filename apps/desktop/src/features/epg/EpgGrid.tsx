@@ -10,6 +10,7 @@ import { ipc, type ChannelRecord, type Programme, type ReminderRecord } from "..
 import { EPG_SHIFT, LIST_ENTER, LIST_MOVE } from "../../lib/keys";
 import { fmtTime, useApp } from "../../lib/store";
 import { useChannelSource } from "../live/useChannelSource";
+import { healthLabel, healthTitle, invalidateHealth, useChannelHealth } from "../live/useChannelHealth";
 import Icon, { type IconName } from "../../components/Icon";
 
 const ROW_H = 52;
@@ -34,6 +35,13 @@ function floorToHalfHour(unix: number) {
   return Math.floor(unix / 1800) * 1800;
 }
 
+/** A programme can be replayed when the channel advertises catch-up and the programme has
+ * started and still sits inside the archive window. */
+function canReplay(ch: ChannelRecord, p: Programme, now: number): boolean {
+  if (ch.catchup_days <= 0) return false;
+  return p.start <= now && p.start >= now - ch.catchup_days * 86400;
+}
+
 export default function EpgGrid() {
   const src = useChannelSource();
   const playlistId = useApp((s) => s.activePlaylistId);
@@ -41,6 +49,7 @@ export default function EpgGrid() {
   const epgStats = useApp((s) => s.epgStats);
   const imports = useApp((s) => s.imports);
   const play = useApp((s) => s.play);
+  const playCatchup = useApp((s) => s.playCatchup);
   const current = useApp((s) => s.currentChannel);
   const favoriteIds = useApp((s) => s.favoriteIds);
   const toggleFavorite = useApp((s) => s.toggleFavorite);
@@ -109,6 +118,8 @@ export default function EpgGrid() {
     overscan: 8,
   });
   const items = virtualizer.getVirtualItems();
+  const visibleIds = items.map((v) => src.row(v.index)?.id).filter((id): id is number => id != null);
+  const health = useChannelHealth(visibleIds);
 
   // Invalidate the programme cache when the window / playlist / guide changes.
   const key = `${playlistId}|${windowStart}|${hours}|${epgVersion}`;
@@ -286,6 +297,11 @@ export default function EpgGrid() {
                     <span className="name block">{ch?.name ?? "…"}</span>
                     {ch && rail.kind !== "group" && ch.group_title && <span className="grp block">{ch.group_title}</span>}
                   </span>
+                  {ch && health.get(ch.id) && (
+                    <span className="kbd" title={healthTitle(health.get(ch.id)!, now)} style={{ color: health.get(ch.id)!.ok ? "var(--accent-2)" : "var(--danger)", flexShrink: 0 }}>
+                      {healthLabel(health.get(ch.id)!)}
+                    </span>
+                  )}
                   {isActive && <span className="badge-live">LIVE</span>}
                 </div>
                 <div className="epg-lane" style={{ left: CH_COL_W }}>
@@ -338,6 +354,11 @@ export default function EpgGrid() {
             <div style={{ color: "var(--text-dim)", fontSize: 12 }}>
               {hover.ch.name} · {fmtTime(hover.p.start)}–{fmtTime(hover.p.stop)}
             </div>
+            {canReplay(hover.ch, hover.p, now) && (
+              <div style={{ color: "var(--accent)", fontSize: 11.5, marginTop: 2 }}>
+                {hover.p.stop <= now ? "Right-click → Replay (catch-up)" : "Right-click → Watch from start"}
+              </div>
+            )}
             {hover.p.desc && (
               <div className="mt-1" style={{ color: "var(--text-dim)", fontSize: 12, maxHeight: 120, overflow: "hidden" }}>
                 {hover.p.desc}
@@ -353,6 +374,16 @@ export default function EpgGrid() {
             {menu.ch.name}
           </div>
           <MenuItem icon="play" label="Play" onClick={() => { void play(menu.ch); setMenu(null); }} />
+          {menu.p && canReplay(menu.ch, menu.p, now) && (
+            <MenuItem
+              icon="clock"
+              label={menu.p.stop <= now ? `Replay “${menu.p.title.slice(0, 26)}${menu.p.title.length > 26 ? "…" : ""}”` : "Watch from start"}
+              onClick={() => {
+                void playCatchup(menu.ch, { start: menu.p!.start, stop: menu.p!.stop, title: menu.p!.title });
+                setMenu(null);
+              }}
+            />
+          )}
           <MenuItem icon={favoriteIds.has(menu.ch.id) ? "starFilled" : "star"} label={favoriteIds.has(menu.ch.id) ? "Remove favorite" : "Add favorite"} onClick={() => { void toggleFavorite(menu.ch); setMenu(null); }} />
           <MenuItem icon="edit" label="Edit EPG (tvg-id)" onClick={() => { setUi({ epgEditChannel: menu.ch }); setMenu(null); }} />
           <MenuItem icon="edit" label="Rename channel…" onClick={() => { setUi({ renameChannel: menu.ch }); setMenu(null); }} />
@@ -389,6 +420,25 @@ export default function EpgGrid() {
             />
           )}
           <MenuItem icon="record" label="Record now…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
+          <MenuItem
+            icon="activity"
+            label="Probe stream health"
+            onClick={() => {
+              const ch = menu.ch;
+              setMenu(null);
+              void ipc
+                .probeChannel(ch.id)
+                .then((h) => {
+                  invalidateHealth([ch.id]);
+                  useApp.getState().pushToast({
+                    level: h.ok ? "info" : "warn",
+                    title: h.ok ? `${ch.name}: stream is up` : `${ch.name}: probe failed`,
+                    body: healthTitle(h, Math.floor(Date.now() / 1000)),
+                  });
+                })
+                .catch((e) => useApp.getState().pushToast({ level: "error", title: "Probe failed", body: String(e) }));
+            }}
+          />
         </div>
       )}
     </div>

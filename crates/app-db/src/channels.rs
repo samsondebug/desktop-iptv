@@ -6,7 +6,7 @@ use app_core::{ChannelRecord, GroupSummary, PlaylistSummary};
 use rusqlite::{params, Connection, OptionalExtension};
 
 /// A channel as produced by a parser/adapter — no id yet, name not yet normalized.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChannelInsert {
     pub source_id: String,
     pub name: String,
@@ -17,6 +17,24 @@ pub struct ChannelInsert {
     pub tvg_name: Option<String>,
     pub catchup: bool,
     pub catchup_days: i32,
+    /// 'default' | 'append' | 'shift' | 'flussonic' | 'xc' (M3U `catchup=` attr / adapter).
+    pub catchup_kind: Option<String>,
+    /// Raw `catchup-source` template (may embed credentials — stays in Rust).
+    pub catchup_source: Option<String>,
+}
+
+/// What the catch-up URL builder needs for one channel (credentials stay in Rust).
+#[derive(Debug, Clone)]
+pub struct CatchupInfo {
+    pub channel_id: i64,
+    pub name: String,
+    pub stream_url: String,
+    pub catchup: bool,
+    pub catchup_days: i32,
+    pub catchup_kind: Option<String>,
+    pub catchup_source: Option<String>,
+    /// 'm3u' | 'xtream' | 'stalker'
+    pub playlist_type: String,
 }
 
 /// UI-safe playlist metadata.
@@ -223,6 +241,21 @@ impl Db {
         rows: &[ChannelInsert],
         sync_gen: Option<i64>,
     ) -> Result<(u64, u64)> {
+        // Channel-name cleanup rules run on the way in, so a refresh re-applies them for free.
+        let cleaned: Vec<ChannelInsert>;
+        let rows = if self.name_rules_active() {
+            cleaned = rows
+                .iter()
+                .map(|r| {
+                    let mut r = r.clone();
+                    r.name = self.apply_name_rules(&r.name);
+                    r
+                })
+                .collect();
+            &cleaned[..]
+        } else {
+            rows
+        };
         let mut inserted = 0u64;
         let mut updated = 0u64;
         for chunk in rows.chunks(MAX_ROWS_PER_TX) {
@@ -301,6 +334,31 @@ impl Db {
             c.query_row(&format!("SELECT {CHANNEL_COLS} FROM channels WHERE id = ?1"), params![id], row_to_channel)
                 .optional()?
                 .ok_or(DbError::NotFound)
+        })
+    }
+
+    /// Everything the catch-up URL builder needs (templates may embed credentials — Rust only).
+    pub fn catchup_info(&self, channel_id: i64) -> Result<CatchupInfo> {
+        self.with_read(|c| {
+            c.query_row(
+                "SELECT ch.id, ch.name, ch.stream_url, ch.catchup, ch.catchup_days, ch.catchup_kind, ch.catchup_source, p.type
+                 FROM channels ch JOIN playlists p ON p.id = ch.playlist_id WHERE ch.id = ?1",
+                params![channel_id],
+                |r| {
+                    Ok(CatchupInfo {
+                        channel_id: r.get(0)?,
+                        name: r.get(1)?,
+                        stream_url: r.get(2)?,
+                        catchup: r.get::<_, i64>(3)? != 0,
+                        catchup_days: r.get(4)?,
+                        catchup_kind: r.get(5)?,
+                        catchup_source: r.get(6)?,
+                        playlist_type: r.get(7)?,
+                    })
+                },
+            )
+            .optional()?
+            .ok_or(DbError::NotFound)
         })
     }
 
@@ -398,8 +456,8 @@ fn upsert_chunk(
         tx.query_row("SELECT COUNT(*) FROM channels WHERE playlist_id = ?1", params![playlist_id], |r| r.get(0))?;
     {
         let mut st = tx.prepare_cached(
-            r#"INSERT INTO channels(playlist_id, source_id, name, normalized_name, "group", logo, stream_url, tvg_id, tvg_name, catchup, catchup_days, sync_gen)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, COALESCE(?12, 0))
+            r#"INSERT INTO channels(playlist_id, source_id, name, normalized_name, "group", logo, stream_url, tvg_id, tvg_name, catchup, catchup_days, catchup_kind, catchup_source, sync_gen)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, COALESCE(?14, 0))
                ON CONFLICT(playlist_id, source_id) DO UPDATE SET
                  name = excluded.name,
                  normalized_name = excluded.normalized_name,
@@ -409,7 +467,9 @@ fn upsert_chunk(
                  tvg_id = excluded.tvg_id,
                  tvg_name = excluded.tvg_name,
                  catchup = excluded.catchup,
-                 catchup_days = excluded.catchup_days
+                 catchup_days = excluded.catchup_days,
+                 catchup_kind = excluded.catchup_kind,
+                 catchup_source = excluded.catchup_source
                WHERE channels.name IS NOT excluded.name
                   OR channels."group" IS NOT excluded."group"
                   OR channels.logo IS NOT excluded.logo
@@ -417,7 +477,9 @@ fn upsert_chunk(
                   OR channels.tvg_id IS NOT excluded.tvg_id
                   OR channels.tvg_name IS NOT excluded.tvg_name
                   OR channels.catchup IS NOT excluded.catchup
-                  OR channels.catchup_days IS NOT excluded.catchup_days"#,
+                  OR channels.catchup_days IS NOT excluded.catchup_days
+                  OR channels.catchup_kind IS NOT excluded.catchup_kind
+                  OR channels.catchup_source IS NOT excluded.catchup_source"#,
         )?;
         for row in chunk {
             let normalized = normalize_name(&row.name);
@@ -433,6 +495,8 @@ fn upsert_chunk(
                 row.tvg_name,
                 row.catchup as i32,
                 row.catchup_days,
+                row.catchup_kind,
+                row.catchup_source,
                 sync_gen,
             ])?;
         }
@@ -483,6 +547,8 @@ mod tests {
             tvg_name: None,
             catchup: false,
             catchup_days: 0,
+            catchup_kind: None,
+            catchup_source: None,
         }
     }
 

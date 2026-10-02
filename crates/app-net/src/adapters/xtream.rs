@@ -374,6 +374,8 @@ impl XtreamClient {
             tvg_name: None,
             catchup: truthy(v, "tv_archive"),
             catchup_days: i(v, "tv_archive_duration").unwrap_or(0).clamp(0, 3650) as i32,
+            catchup_kind: truthy(v, "tv_archive").then(|| "xc".to_string()),
+            catchup_source: None,
         })
     }
 
@@ -1120,6 +1122,8 @@ mod tests {
                 tvg_name: None,
                 catchup: true,
                 catchup_days: 7,
+                catchup_kind: Some("xc".into()),
+                catchup_source: None,
             }
         );
         let sparse = json!({"name": "ITV", "stream_id": "102", "stream_icon": "", "epg_channel_id": "", "category_id": 2, "tv_archive": "0", "tv_archive_duration": null});

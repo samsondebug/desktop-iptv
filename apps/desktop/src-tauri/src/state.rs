@@ -22,6 +22,13 @@ pub enum PlaybackItem {
     },
     /// Raw URL from Diagnostics.
     Url,
+    /// Archive replay of a past programme on a channel (provider catch-up).
+    Catchup {
+        channel_id: i64,
+        start: i64,
+        stop: i64,
+        title: String,
+    },
 }
 
 /// Playback bookkeeping the command layer needs across calls.
@@ -36,6 +43,8 @@ pub struct Playback {
     pub paused: bool,
     /// Last time VOD progress was persisted.
     pub progress_saved_at: Option<Instant>,
+    /// Last time a stream-health snapshot was written for the playing channel.
+    pub health_saved_at: Option<Instant>,
     pub last_saved_pos: i64,
     /// Live-stream auto-reconnect bookkeeping: consecutive end-of-file/error retries since the
     /// last successful first frame, and whether the user stopped playback on purpose.
@@ -53,7 +62,8 @@ impl Playback {
         }
     }
     pub fn is_vod(&self) -> bool {
-        matches!(self.item, PlaybackItem::Vod { .. } | PlaybackItem::Episode { .. })
+        // Catch-up is provider archive: seekable and finite, so it behaves like VOD.
+        matches!(self.item, PlaybackItem::Vod { .. } | PlaybackItem::Episode { .. } | PlaybackItem::Catchup { .. })
     }
     /// Live TV (channel or raw URL): ends are provider hiccups, not the end of the content.
     pub fn is_live(&self) -> bool {

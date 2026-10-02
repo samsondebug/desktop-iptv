@@ -1,6 +1,6 @@
 # Status — full 90-day plan implemented
 
-Last updated: 2026-09-28 (v0.3.0). Six commits, ~15.6k lines of Rust across 5 crates (90 tests, clippy
+Last updated: 2026-10-02 (v0.4.0). Six commits, ~15.6k lines of Rust across 5 crates (90 tests, clippy
 `-D warnings` clean, `cargo fmt` clean), ~5.4k lines of TypeScript/React (tsc + vite green),
 105 Tauri commands.
 
@@ -142,6 +142,25 @@ product name, and optionally an MSIX wrap for the Microsoft Store.
     everything with Unhide buttons. Applied via `curation_clause()` in every list/count/search.
   * **VOD filter chips**: decade (2020s/2010s/2000s/Older) + rating (★7+/★8+) chips over the
     poster grid; `VodFilter` is typed numerics only.
+
+* **v0.4.0 — catch-up, stream health, name cleanup** (landscape review "Next" tier):
+  * **Catch-up / archive playback** (migration `0005`, `app-net/src/catchup.rs`): right-click a
+    past (or airing) programme in the guide → Replay / Watch from start, when the channel
+    advertises an archive window. Replay URLs are built in Rust per mode — Xtream `timeshift`
+    (derived from the live URL), Flussonic `archive-…`, `catchup-source` templates
+    (`default`/`append`, `{utc}`/`${start}`/`{duration}`/date placeholders), and `shift`
+    (`?utc=&lutc=`) — with unit tests per mode. Plays like VOD (seek bar, Stable profile),
+    REPLAY badge + "Back to live" in the player chrome. Stalker catch-up not yet.
+  * **Stream-health badges** (`channel_health` table): the playing channel's telemetry is
+    snapshotted every ~30 s (resolution/codec/bitrate; zero extra connections) and shown as a
+    "1080p"-style badge in the channel list and guide, with "played fine 12 min ago · 1920×1080
+    · H264 · 5.2 Mbps" on hover. Right-click → Probe stream health runs the headless engine
+    probe on demand and records the result. Nobody else ships this on desktop.
+  * **Channel-name cleanup rules** (`app-db/src/namerules.rs`): regex find→replace rules stored
+    in settings, compiled into the Db and applied at import time (refresh-safe by design), with
+    Settings → Playlists UI: per-rule enable, live preview against the active playlist,
+    "Save & apply now" that rewrites existing rows (FTS follows via triggers). A rule that
+    erases a whole name keeps the original. Curation renames still win over cleaned names.
 
 ## Next
 

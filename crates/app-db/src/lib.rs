@@ -9,6 +9,8 @@
 pub mod channels;
 pub mod curation;
 pub mod epg;
+pub mod health;
+pub mod namerules;
 pub mod normalize;
 pub mod progress;
 pub mod recordings;
@@ -45,6 +47,7 @@ pub const MIGRATIONS: &[(&str, &str)] = &[
     ("0002_epg_vod_recording", include_str!("../../../migrations/0002_epg_vod_recording.sql")),
     ("0003_reminders", include_str!("../../../migrations/0003_reminders.sql")),
     ("0004_curation", include_str!("../../../migrations/0004_curation.sql")),
+    ("0005_catchup_health", include_str!("../../../migrations/0005_catchup_health.sql")),
 ];
 
 pub const MAX_ROWS_PER_TX: usize = 5_000;
@@ -56,6 +59,8 @@ pub struct Db {
     /// Parental keyword filter (lowercase). When non-empty, list/search queries exclude rows whose
     /// name/title or group/category contains any keyword.
     hidden: std::sync::RwLock<Vec<String>>,
+    /// Compiled channel-name cleanup rules applied at import time (see `namerules`).
+    name_rules: std::sync::RwLock<Vec<(regex::Regex, String)>>,
 }
 
 impl std::fmt::Debug for Db {
@@ -99,7 +104,13 @@ impl Db {
             }
         }
         let writer = open_conn(&path)?;
-        let db = Self { path, writer: Mutex::new(writer), readers: Mutex::new(Vec::new()), hidden: Default::default() };
+        let db = Self {
+            path,
+            writer: Mutex::new(writer),
+            readers: Mutex::new(Vec::new()),
+            hidden: Default::default(),
+            name_rules: Default::default(),
+        };
         db.migrate()?;
         Ok(db)
     }
@@ -115,6 +126,7 @@ impl Db {
             writer: Mutex::new(writer),
             readers: Mutex::new(Vec::new()),
             hidden: Default::default(),
+            name_rules: Default::default(),
         };
         db.migrate()?;
         Ok(db)

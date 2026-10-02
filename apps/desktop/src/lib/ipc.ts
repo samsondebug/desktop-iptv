@@ -206,7 +206,8 @@ export type PlaybackItem =
   | { kind: "channel"; id: number }
   | { kind: "vod"; id: number }
   | { kind: "episode"; id: number; series_id: number }
-  | { kind: "url" };
+  | { kind: "url" }
+  | { kind: "catchup"; channel_id: number; start: number; stop: number; title: string };
 
 export interface PlaybackState {
   item: PlaybackItem;
@@ -392,6 +393,21 @@ export type DvrEvent =
   | { type: "download_progress"; id: number; bytes_done: number; bytes_total: number | null }
   | { type: "download_done"; id: number; status: string; error: string | null }
   | { type: "reminder_fired"; id: number; channel_id: number; channel_name: string; title: string; start: number };
+export interface NameRule {
+  pattern: string;
+  replacement: string;
+  enabled: boolean;
+}
+export interface HealthRecord {
+  channel_id: number;
+  ok: boolean;
+  width: number | null;
+  height: number | null;
+  codec: string | null;
+  bitrate_kbps: number | null;
+  source: "playback" | "probe";
+  checked_at: number;
+}
 export interface CurationState {
   hidden_channels: { channel_id: number; name: string; playlist_id: number }[];
   hidden_groups: { playlist_id: number; group_title: string; channel_count: number }[];
@@ -444,6 +460,8 @@ export const ipc = {
   diagProbe: (url: string, profile: ProfileMode | null, timeoutSecs: number | null) => invoke<ProbeResult>("diag_probe", { url, profile, timeoutSecs }),
   diagCheckSource: (playlistId: number) => invoke<SourceCheck>("diag_check_source", { playlistId }),
   diagReport: () => invoke<string>("diag_report"),
+  channelHealth: (channelIds: number[]) => invoke<HealthRecord[]>("channel_health", { channelIds }),
+  probeChannel: (channelId: number) => invoke<HealthRecord>("probe_channel", { channelId }),
 
   // windows
   setMiniMode: (on: boolean) => invoke<boolean>("set_mini_mode", { on }),
@@ -469,6 +487,9 @@ export const ipc = {
   getThemeTokens: () => invoke<string | null>("get_theme_tokens"),
   setThemeTokens: (json: string | null) => invoke<void>("set_theme_tokens", { json }),
 
+  playCatchup: (channelId: number, start: number, stop: number, title: string | null) =>
+    invoke<PlaybackState>("play_catchup", { channelId, start, stop, title }),
+
   // playlists / catalog
   addPlaylist: (name: string, source: AddPlaylistSource) => invoke<number>("add_playlist", { name, source }),
   refreshPlaylist: (playlistId: number) => invoke<boolean>("refresh_playlist", { playlistId }),
@@ -487,6 +508,9 @@ export const ipc = {
   setChannelHidden: (channelId: number, hidden: boolean) => invoke<void>("set_channel_hidden", { channelId, hidden }),
   setGroupHidden: (playlistId: number, groupTitle: string, hidden: boolean) => invoke<void>("set_group_hidden", { playlistId, groupTitle, hidden }),
   curationState: () => invoke<CurationState>("curation_state"),
+  getNameRules: () => invoke<NameRule[]>("get_name_rules"),
+  setNameRules: (rules: NameRule[], applyNow: boolean) => invoke<{ rules: number; changed: number }>("set_name_rules", { rules, applyNow }),
+  previewNameRules: (rules: NameRule[], playlistId: number) => invoke<{ before: string; after: string }[]>("preview_name_rules", { rules, playlistId }),
   getFavorites: () => invoke<ChannelRecord[]>("get_favorites"),
   getFavoriteIds: () => invoke<number[]>("get_favorite_ids"),
   setFavorite: (channelId: number, on: boolean) => invoke<void>("set_favorite", { channelId, on }),

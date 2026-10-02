@@ -25,6 +25,8 @@ export default function PlayerPane() {
   const telemetry = useApp((s) => s.telemetry);
   const playback = useApp((s) => s.playback);
   const isVod = !!playback?.is_vod;
+  const catchup = playback?.item.kind === "catchup" ? playback.item : null;
+  const play = useApp((s) => s.play);
   // "current" = anything playing; the label depends on what it is.
   const current = currentChannel ?? currentVod ?? currentEpisode ?? (playback && playback.item.kind === "url" ? { id: -1, name: "URL probe" } : null);
   const label = currentChannel
@@ -161,13 +163,28 @@ export default function PlayerPane() {
       {current && !mini && (
         <div className="absolute top-3 left-3 flex items-center gap-2 fade-chrome">
           {!isVod && <span className="badge-live">LIVE</span>}
+          {catchup && (
+            <span className="badge-live" style={{ background: "var(--accent)" }}>
+              REPLAY
+            </span>
+          )}
           <span className="hud" style={{ fontFamily: "var(--font)", fontSize: 13, fontWeight: 600 }}>
             {label}
           </span>
-          {sublabel && (
+          {catchup && catchup.title && (
+            <span className="hud" style={{ color: "var(--text-dim)" }}>
+              {catchup.title}
+            </span>
+          )}
+          {!catchup && sublabel && (
             <span className="hud" style={{ color: "var(--text-dim)" }}>
               {sublabel}
             </span>
+          )}
+          {catchup && currentChannel && (
+            <button className="btn ghost" style={{ color: "white", fontSize: 11.5 }} onClick={() => void play(currentChannel)}>
+              Back to live
+            </button>
           )}
         </div>
       )}

@@ -170,6 +170,8 @@ mod tests {
             tvg_name: None,
             catchup: false,
             catchup_days: 0,
+            catchup_kind: None,
+            catchup_source: None,
         };
         db.upsert_channels(p, &[mk("1", "BBC One", "UK"), mk("2", "Shopping TV", "Shop"), mk("3", "ITV", "UK")])
             .unwrap();

@@ -10,6 +10,7 @@
 //! * Every error string that can reach the UI is passed through [`app_core::redact::redact`].
 
 pub mod adapters;
+pub mod catchup;
 pub mod downloader;
 pub mod http;
 pub mod importer;

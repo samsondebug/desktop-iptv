@@ -5,7 +5,7 @@ use crate::state::AppState;
 use crate::sync::{spawn_sync, SyncScope};
 use app_core::*;
 use app_db::channels::{PlaylistInsert, PlaylistMeta};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -274,4 +274,51 @@ pub fn set_group_hidden(
 #[tauri::command]
 pub fn curation_state(state: State<'_, AppState>) -> CmdResult<app_db::curation::CurationState> {
     state.db.curation_state().map_err(err)
+}
+
+// ---------- channel-name cleanup rules ----------
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NameRulePreviewRow {
+    pub before: String,
+    pub after: String,
+}
+
+#[tauri::command]
+pub fn get_name_rules(state: State<'_, AppState>) -> CmdResult<Vec<app_db::namerules::NameRule>> {
+    state.db.load_name_rules().map_err(err)
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NameRulesResult {
+    pub rules: usize,
+    pub changed: u64,
+}
+
+/// Save (and compile) the rules; optionally rewrite existing channel names right away.
+/// New imports/refreshes always apply the saved rules.
+#[tauri::command]
+pub fn set_name_rules(
+    state: State<'_, AppState>,
+    rules: Vec<app_db::namerules::NameRule>,
+    apply_now: bool,
+) -> CmdResult<NameRulesResult> {
+    let n = state.db.set_name_rules(&rules)?;
+    let changed = if apply_now { state.db.reapply_name_rules().map_err(err)? } else { 0 };
+    Ok(NameRulesResult { rules: n, changed })
+}
+
+/// Dry-run `rules` against this playlist's current names (nothing is saved or changed).
+#[tauri::command]
+pub fn preview_name_rules(
+    state: State<'_, AppState>,
+    rules: Vec<app_db::namerules::NameRule>,
+    playlist_id: i64,
+) -> CmdResult<Vec<NameRulePreviewRow>> {
+    Ok(state
+        .db
+        .preview_name_rules(&rules, playlist_id, 12)?
+        .into_iter()
+        .map(|(before, after)| NameRulePreviewRow { before, after })
+        .collect())
 }

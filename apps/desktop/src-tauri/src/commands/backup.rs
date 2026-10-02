@@ -382,6 +382,8 @@ mod tests {
                     tvg_name: None,
                     catchup: false,
                     catchup_days: 0,
+                    catchup_kind: None,
+                    catchup_source: None,
                 },
                 ChannelInsert {
                     source_id: "2".into(),
@@ -393,6 +395,8 @@ mod tests {
                     tvg_name: None,
                     catchup: false,
                     catchup_days: 0,
+                    catchup_kind: None,
+                    catchup_source: None,
                 },
             ],
         )
@@ -445,6 +449,8 @@ mod tests {
                 tvg_name: None,
                 catchup: false,
                 catchup_days: 0,
+                catchup_kind: None,
+                catchup_source: None,
             }],
         )
         .unwrap();

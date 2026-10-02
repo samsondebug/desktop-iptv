@@ -100,6 +100,36 @@ fn on_engine_event(app: &tauri::AppHandle, ev: EngineEvent) {
             if due {
                 commands::playback::save_progress_now(&state);
             }
+            // Stream-health snapshot for the playing channel, at most every 30 s (first one as
+            // soon as the resolution is known). Zero extra connections — it's the live telemetry.
+            let health_channel = {
+                let mut pb = state.playback.lock().unwrap();
+                match pb.item {
+                    state::PlaybackItem::Channel { id } if t.width > 0 => {
+                        let due = pb.health_saved_at.map(|at| at.elapsed() >= Duration::from_secs(30)).unwrap_or(true);
+                        if due {
+                            pb.health_saved_at = Some(Instant::now());
+                            Some(id)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                }
+            };
+            if let Some(id) = health_channel {
+                let now = commands::now_unix();
+                let _ = state.db.set_channel_health(
+                    id,
+                    true,
+                    Some(t.width as i64),
+                    Some(t.height as i64),
+                    Some(&t.codec_name).filter(|c| !c.is_empty()).map(String::as_str),
+                    Some(t.bitrate_kbps as i64).filter(|b| *b > 0),
+                    "playback",
+                    now,
+                );
+            }
         }
         EngineEvent::PlaybackStarted { .. } => {
             state.playback.lock().unwrap().reconnect_attempts = 0;
@@ -193,6 +223,7 @@ pub fn run() {
 
             let state = AppState::new(db.clone(), engine, data_dir);
             let _ = commands::parental::apply_filter(&state);
+            let _ = state.db.load_name_rules();
             app.manage(state);
             app.manage(dvr::DvrState::default());
 
@@ -239,6 +270,8 @@ pub fn run() {
             commands::diag_probe,
             commands::diag_check_source,
             commands::diag_report,
+            commands::channel_health,
+            commands::probe_channel,
             // bootstrap / config / license / theme
             commands::get_bootstrap,
             commands::get_config,
@@ -271,9 +304,13 @@ pub fn run() {
             commands::set_channel_hidden,
             commands::set_group_hidden,
             commands::curation_state,
+            commands::get_name_rules,
+            commands::set_name_rules,
+            commands::preview_name_rules,
             // playback
             commands::get_playback_state,
             commands::play_channel,
+            commands::play_catchup,
             commands::play_vod,
             commands::play_episode,
             commands::load_stream,

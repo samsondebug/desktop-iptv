@@ -380,6 +380,8 @@ impl StalkerClient {
             tvg_name: None,
             catchup: archive,
             catchup_days: if archive { (days.clamp(0, 30) as i32).max(1) } else { 0 },
+            catchup_kind: None,
+            catchup_source: None,
         })
     }
 }

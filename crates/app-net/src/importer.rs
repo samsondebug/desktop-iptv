@@ -237,6 +237,8 @@ impl<'a> Ingest<'a> {
                 tvg_name: e.tvg_name,
                 catchup: e.catchup,
                 catchup_days: e.catchup_days,
+                catchup_kind: e.catchup_kind,
+                catchup_source: e.catchup_source,
             });
             self.channels_seen += 1;
             if self.batch.len() >= BATCH {

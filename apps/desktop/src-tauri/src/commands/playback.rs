@@ -69,6 +69,7 @@ pub fn do_load(
     pb.paused = false;
     pb.item = item;
     pb.progress_saved_at = None;
+    pb.health_saved_at = None;
     pb.last_saved_pos = start_secs.unwrap_or(0.0) as i64;
     pb.user_stopped = false;
     pb.generation = pb.generation.wrapping_add(1);
@@ -172,6 +173,36 @@ pub async fn play_channel(state: State<'_, AppState>, channel_id: i64) -> CmdRes
     do_load(&state, &url, profile, PlaybackItem::Channel { id: channel_id }, None)?;
     let _ = state.db.touch_recent(channel_id);
     let _ = state.db.set_last_channel_id(channel_id);
+    Ok(playback_state(&state))
+}
+
+/// Replay a past (or still-airing) programme from the provider's archive. The replay URL is
+/// built in Rust from the stored catch-up metadata — templates and credentials never reach the
+/// webview. Seeking works like VOD; "stop" returns to nothing (the UI offers "back to live").
+#[tauri::command]
+pub fn play_catchup(
+    state: State<'_, AppState>,
+    channel_id: i64,
+    start: i64,
+    stop: i64,
+    title: Option<String>,
+) -> CmdResult<PlaybackState> {
+    let info = state.db.catchup_info(channel_id).map_err(err)?;
+    if info.stream_url.starts_with(app_net::adapters::STALKER_SCHEME) {
+        return Err("Catch-up is not available for Stalker channels yet".into());
+    }
+    let now = super::now_unix();
+    // Clamp a still-airing programme to the live edge minus a safety margin.
+    let effective_stop = stop.min(now - 15).max(start + 60);
+    let url = app_net::catchup::replay_url(&info, start, effective_stop, now).map_err(err)?;
+    tracing::info!(channel = %info.name, url = %app_core::redact::redact(&url), "catch-up replay");
+    do_load(
+        &state,
+        &url,
+        ProfileMode::Stable,
+        PlaybackItem::Catchup { channel_id, start, stop: effective_stop, title: title.unwrap_or_default() },
+        None,
+    )?;
     Ok(playback_state(&state))
 }
 

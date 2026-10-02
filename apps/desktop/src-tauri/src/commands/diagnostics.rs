@@ -431,3 +431,38 @@ mod tests {
         assert_eq!(fmt_unix(951_782_400), "2000-02-29T00:00:00Z");
     }
 }
+
+// ---------- per-channel health ----------
+
+/// Last known health for the given channels (visible rows; the UI pages).
+#[tauri::command]
+pub fn channel_health(
+    state: State<'_, AppState>,
+    channel_ids: Vec<i64>,
+) -> CmdResult<Vec<app_db::health::HealthRecord>> {
+    state.db.channel_health(&channel_ids).map_err(err)
+}
+
+/// Probe one channel with the headless engine and record the result as its health snapshot.
+#[tauri::command]
+pub async fn probe_channel(state: State<'_, AppState>, channel_id: i64) -> CmdResult<app_db::health::HealthRecord> {
+    let ch = state.db.get_channel(channel_id).map_err(err)?;
+    let url = super::playback::resolve_stream_url(&state, &ch).await?;
+    let r = diag_probe(state.clone(), url, None, Some(20)).await?;
+    let now = super::now_unix();
+    let rec = app_db::health::HealthRecord {
+        channel_id,
+        ok: r.ok,
+        width: r.width.map(|w| w as i64),
+        height: r.height.map(|h| h as i64),
+        codec: r.video_codec.clone(),
+        bitrate_kbps: None,
+        source: "probe".into(),
+        checked_at: now,
+    };
+    state
+        .db
+        .set_channel_health(channel_id, rec.ok, rec.width, rec.height, rec.codec.as_deref(), None, "probe", now)
+        .map_err(err)?;
+    Ok(rec)
+}

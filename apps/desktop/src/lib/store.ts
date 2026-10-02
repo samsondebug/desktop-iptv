@@ -144,6 +144,7 @@ interface AppStore {
   hideGroup: (playlistId: number, groupTitle: string) => Promise<void>;
 
   play: (ch: ChannelRecord) => Promise<void>;
+  playCatchup: (ch: ChannelRecord, p: { start: number; stop: number; title: string }) => Promise<void>;
   playVod: (v: VodRecord, fromStart?: boolean) => Promise<void>;
   playEpisode: (e: EpisodeRecord, series: VodRecord | null, fromStart?: boolean) => Promise<void>;
   applyPlaybackState: (pb: PlaybackState) => Promise<void>;
@@ -518,6 +519,17 @@ export const useApp = create<AppStore>((set, get) => ({
     } catch (e) {
       set({ buffering: false, lastError: String(e) });
       get().pushToast({ level: "error", title: "Could not start playback", body: String(e) });
+    }
+  },
+
+  playCatchup: async (ch, p) => {
+    set({ currentChannel: ch, currentVod: null, currentEpisode: null, currentSeries: null, lastError: null, lastZapMs: null, buffering: true });
+    try {
+      const playback = await ipc.playCatchup(ch.id, p.start, p.stop, p.title);
+      set({ playback });
+    } catch (e) {
+      set({ buffering: false, lastError: String(e) });
+      get().pushToast({ level: "error", title: "Replay failed", body: String(e) });
     }
   },
 

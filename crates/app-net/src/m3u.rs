@@ -27,6 +27,10 @@ pub struct M3uEntry {
     pub tvg_chno: Option<String>,
     pub catchup: bool,
     pub catchup_days: i32,
+    /// `catchup=` attr value when meaningful: default | append | shift | flussonic | xc | vod…
+    pub catchup_kind: Option<String>,
+    /// `catchup-source=` template (may embed credentials).
+    pub catchup_source: Option<String>,
     /// `#EXTVLCOPT:http-user-agent=` / `#KODIPROP:` hints, keyed by option name.
     pub options: HashMap<String, String>,
     pub extra_attrs: HashMap<String, String>,
@@ -282,7 +286,8 @@ fn apply_attrs(e: &mut M3uEntry, mut attrs: HashMap<String, String>) {
     e.tvg_logo = take(&mut attrs, "tvg-logo");
     e.group_title = take(&mut attrs, "group-title");
     e.tvg_chno = take(&mut attrs, "tvg-chno");
-    let catchup_kind = take(&mut attrs, "catchup");
+    let catchup_kind = take(&mut attrs, "catchup").or_else(|| take(&mut attrs, "catchup-type"));
+    e.catchup_source = take(&mut attrs, "catchup-source");
     let days = ["catchup-days", "timeshift", "tvg-rec"]
         .iter()
         .filter_map(|k| take(&mut attrs, k))
@@ -290,7 +295,10 @@ fn apply_attrs(e: &mut M3uEntry, mut attrs: HashMap<String, String>) {
         .max()
         .unwrap_or(0);
     e.catchup_days = days.max(0);
-    e.catchup = catchup_kind.map(|k| k != "0" && !k.is_empty()).unwrap_or(false) || e.catchup_days > 0;
+    e.catchup = catchup_kind.as_deref().map(|k| k != "0" && !k.is_empty()).unwrap_or(false)
+        || e.catchup_days > 0
+        || e.catchup_source.is_some();
+    e.catchup_kind = catchup_kind.map(|k| k.trim().to_lowercase()).filter(|k| k != "0" && !k.is_empty());
     e.extra_attrs = attrs;
 }
 

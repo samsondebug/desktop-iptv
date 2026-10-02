@@ -6,8 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { LIST_ENTER, LIST_MOVE } from "../../lib/keys";
 import { useApp } from "../../lib/store";
-import { type ChannelRecord } from "../../lib/ipc";
+import { ipc, type ChannelRecord, type HealthRecord } from "../../lib/ipc";
 import { useChannelSource } from "./useChannelSource";
+import { healthLabel, healthTitle, invalidateHealth, useChannelHealth } from "./useChannelHealth";
 import Icon from "../../components/Icon";
 
 const ROW_H = 44;
@@ -49,6 +50,9 @@ export default function ChannelList() {
     overscan: 12,
   });
   const items = virtualizer.getVirtualItems();
+  const visibleIds = items.map((v) => src.row(v.index)?.id).filter((id): id is number => id != null);
+  const health = useChannelHealth(visibleIds);
+  const nowS = Math.floor(Date.now() / 1000);
 
   // Prefetch the pages the viewport (plus overscan) touches.
   useEffect(() => {
@@ -160,6 +164,8 @@ export default function ChannelList() {
                     }}
                     onFav={() => void toggleFavorite(ch)}
                     onMenu={(x, y) => setMenu({ x, y, ch })}
+                    health={health.get(ch.id)}
+                    now={nowS}
                   />
                 ) : (
                   <div className="row" style={{ color: "var(--text-faint)" }}>
@@ -192,6 +198,25 @@ export default function ChannelList() {
             <MenuRow icon="eyeOff" label={`Hide group “${menu.ch.group_title.slice(0, 24)}${menu.ch.group_title.length > 24 ? "…" : ""}”`} onClick={() => { void hideGroup(menu.ch.playlist_id, menu.ch.group_title!); setMenu(null); }} />
           )}
           <MenuRow icon="record" label="Record now…" onClick={() => { window.dispatchEvent(new CustomEvent("diptv:record", { detail: menu.ch })); setMenu(null); }} />
+          <MenuRow
+            icon="activity"
+            label="Probe stream health"
+            onClick={() => {
+              const ch = menu.ch;
+              setMenu(null);
+              void ipc
+                .probeChannel(ch.id)
+                .then((h) => {
+                  invalidateHealth([ch.id]);
+                  useApp.getState().pushToast({
+                    level: h.ok ? "info" : "warn",
+                    title: h.ok ? `${ch.name}: stream is up` : `${ch.name}: probe failed`,
+                    body: healthTitle(h, Math.floor(Date.now() / 1000)),
+                  });
+                })
+                .catch((e) => useApp.getState().pushToast({ level: "error", title: "Probe failed", body: String(e) }));
+            }}
+          />
         </div>
       )}
     </div>
@@ -217,6 +242,8 @@ function Row({
   onPlay,
   onFav,
   onMenu,
+  health,
+  now,
 }: {
   ch: ChannelRecord;
   index: number;
@@ -227,6 +254,8 @@ function Row({
   onPlay: () => void;
   onFav: () => void;
   onMenu: (x: number, y: number) => void;
+  health?: HealthRecord;
+  now: number;
 }) {
   const [logoOk, setLogoOk] = useState(!!ch.logo);
   return (
@@ -250,6 +279,11 @@ function Row({
         {showGroup && ch.group_title && <span className="grp block">{ch.group_title}</span>}
       </span>
       <span className="flex items-center gap-2">
+        {health && (
+          <span className="kbd" title={healthTitle(health, now)} style={{ color: health.ok ? "var(--accent-2)" : "var(--danger)" }}>
+            {healthLabel(health)}
+          </span>
+        )}
         {ch.catchup_days > 0 && (
           <span className="kbd" title={`Catch-up ${ch.catchup_days} days`}>
             <Icon name="clock" size={11} /> {ch.catchup_days}d
